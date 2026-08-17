@@ -37,7 +37,7 @@ module.exports = function createServer(client) {
 
   const dashboardPath = path.join(__dirname, '..', '..', 'dashboard');
   app.use(express.static(dashboardPath));
-  app.get('*', (req, res) => {
+  app.use((req, res) => {
     if (!req.path.startsWith('/api')) {
       res.sendFile(path.join(dashboardPath, 'index.html'));
     }
