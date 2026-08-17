@@ -8,6 +8,8 @@ function loadCommands(client) {
   const folders = [
     path.join(__dirname, '..', 'commands', 'moderation'),
     path.join(__dirname, '..', 'commands', 'utility'),
+    path.join(__dirname, '..', 'commands', 'store'),
+    path.join(__dirname, '..', 'commands', 'admin'),
   ];
 
   for (const folder of folders) {

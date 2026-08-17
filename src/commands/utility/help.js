@@ -26,6 +26,12 @@ module.exports = {
     const utility = client.commands.filter(c =>
       ['ping', 'serverinfo', 'userinfo', 'avatar', 'help'].includes(c.name)
     );
+    const store = client.commands.filter(c =>
+      ['addproduct', 'products', 'deleteproduct', 'redeem', 'regenerate'].includes(c.name)
+    );
+    const admin = client.commands.filter(c =>
+      ['say', 'announce', 'dm'].includes(c.name)
+    );
 
     const embed = new EmbedBuilder()
       .setColor(config.embedColor)
@@ -39,6 +45,14 @@ module.exports = {
         {
           name: 'Utility',
           value: utility.map(c => `\`${config.prefix}${c.name}\` — ${c.description}`).join('\n') || 'None',
+        },
+        {
+          name: 'Store',
+          value: store.map(c => `\`${config.prefix}${c.name}\` — ${c.description}`).join('\n') || 'None',
+        },
+        {
+          name: 'Admin',
+          value: admin.map(c => `\`${config.prefix}${c.name}\` — ${c.description}`).join('\n') || 'None',
         },
       )
       .setTimestamp();
