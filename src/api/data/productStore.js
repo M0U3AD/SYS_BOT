@@ -70,9 +70,9 @@ class ProductStore {
     if (!product) return { success: false, error: 'Invalid key' };
 
     const alreadyRedeemed = this.redemptions.find(
-      r => r.key.toUpperCase() === key.toUpperCase() && r.userId === userId
+      r => r.key.toUpperCase() === key.toUpperCase()
     );
-    if (alreadyRedeemed) return { success: false, error: 'You already redeemed this key' };
+    if (alreadyRedeemed) return { success: false, error: 'This key has already been redeemed' };
 
     this.redemptions.push({
       key: key.toUpperCase(),
