@@ -1,4 +1,4 @@
-const t = require('../i18n');
+const t = require('../../i18n');
 const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
 const { getGuildConfig, updateGuildConfig } = require('../../database/utils/GuildConfig');
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
