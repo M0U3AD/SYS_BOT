@@ -31,7 +31,7 @@ module.exports = {
           { name: 'Member', value: 'member' },
           { name: 'Message', value: 'message' },
           { name: 'Server', value: 'server' },
-          { name: 'All', value: '' }
+          { name: 'All', value: 'all' }
         ))
       .addIntegerOption(opt => opt.setName('limit').setDescription('Number of logs').setMinValue(1).setMaxValue(25)))
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
@@ -102,7 +102,8 @@ module.exports = {
     }
 
     if (sub === 'view') {
-      const type = interaction.options.getString('type') || '';
+      const rawType = interaction.options.getString('type') || '';
+      const type = rawType === 'all' ? '' : rawType;
       const limit = interaction.options.getInteger('limit') || 10;
       const logs = await Log.getLogs(interaction.guild.id, type, limit);
       if (logs.length === 0) {
