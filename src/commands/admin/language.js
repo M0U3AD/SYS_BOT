@@ -1,6 +1,9 @@
-const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
+const { successEmbed, errorEmbed } = require('../../utils/embeds');
 const { getGuildConfig, updateGuildConfig } = require('../../database/utils/GuildConfig');
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { t, getLangName, getSupportedLanguages } = require('../../i18n');
+
+const SUPPORTED = ['en', 'es', 'fr', 'de', 'pt', 'ja', 'ko', 'zh'];
 
 module.exports = {
   name: 'language',
@@ -26,18 +29,19 @@ module.exports = {
       return message.reply({ embeds: [errorEmbed('Permission Denied', 'Need Manage Server.')] });
     }
     const lang = args[0];
-    const supported = ['en', 'es', 'fr', 'de', 'pt', 'ja', 'ko', 'zh'];
-    if (!lang || !supported.includes(lang)) {
-      return message.reply({ embeds: [errorEmbed('Invalid Language', `Supported: ${supported.join(', ')}`)] });
+    if (!lang || !SUPPORTED.includes(lang)) {
+      return message.reply({ embeds: [errorEmbed('Invalid Language', t('en', 'LANG_SUPPORTED', SUPPORTED.join(', ')))] });
     }
     await updateGuildConfig(message.guild.id, { language: lang });
-    const name = { en: 'English', es: 'Spanish', fr: 'French', de: 'German', pt: 'Portuguese', ja: 'Japanese', ko: 'Korean', zh: 'Chinese' };
-    return message.reply({ embeds: [successEmbed('Language Changed', `Bot language set to **${name[lang]}**.`)] });
+    return message.reply({ embeds: [successEmbed('Language Changed', t(lang, 'LANG_CHANGED', getLangName(lang)))] });
   },
   async slashExecute(interaction, client) {
     const lang = interaction.options.getString('language');
+    if (!SUPPORTED.includes(lang)) {
+      const current = (await getGuildConfig(interaction.guild.id)).language || 'en';
+      return interaction.reply({ embeds: [errorEmbed('Invalid Language', t(current, 'LANG_SUPPORTED', SUPPORTED.join(', ')))], ephemeral: true });
+    }
     await updateGuildConfig(interaction.guild.id, { language: lang });
-    const name = { en: 'English', es: 'Spanish', fr: 'French', de: 'German', pt: 'Portuguese', ja: 'Japanese', ko: 'Korean', zh: 'Chinese' };
-    return interaction.reply({ embeds: [successEmbed('Language Changed', `Set to **${name[lang]}**.`)] });
+    return interaction.reply({ embeds: [successEmbed('Language Changed', t(lang, 'LANG_CHANGED', getLangName(lang)))] });
   },
 };

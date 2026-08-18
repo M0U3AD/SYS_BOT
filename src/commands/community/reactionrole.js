@@ -1,13 +1,8 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ChannelSelectMenuBuilder, ChannelType, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { successEmbed, errorEmbed, infoEmbed, modEmbed, dashboardEmbed, COLORS } = require('../../utils/embeds');
 const emojis = require('../../utils/emojis');
 const { getGuildConfig, updateGuildConfig } = require('../../database/utils/GuildConfig');
-
-var setups = new Map();
-
-function getSetupData(userId) {
-  return setups.get(userId) || null;
-}
+const { initSetup } = require('../../events/interactionCreate');
 
 function buildPanelEmbed(guild, data) {
   var pairs = data.pairs || [];
@@ -72,238 +67,21 @@ function buildPanelButtons(hasPairs, hasChannel) {
   return [row1, row2];
 }
 
-function buildPreviewEmbed(data) {
-  var pairs = data.pairs || [];
-  var description = pairs.map(function(p) {
-    return p.emoji + ' \u2192 <@&' + p.roleId + '>';
-  }).join('\n');
-
-  return new EmbedBuilder()
-    .setColor(COLORS.blurple)
-    .setTitle(data.title || 'Select Your Roles')
-    .setDescription(description + '\n\nClick a button below to get/remove a role.')
-    .setTimestamp()
-    .setFooter({ text: 'SYS-F1ex \u2022 Reaction Roles' });
-}
-
-function buildPreviewButtons(data) {
-  var pairs = data.pairs || [];
-  if (pairs.length === 0) return [];
-
-  var rows = [];
-  var currentRow = new ActionRowBuilder();
-
-  pairs.forEach(function(p, i) {
-    if (i > 0 && i % 5 === 0) {
-      rows.push(currentRow);
-      currentRow = new ActionRowBuilder();
-    }
-
-    currentRow.addComponents(
-      new ButtonBuilder()
-        .setCustomId('rr_toggle_' + i)
-        .setLabel(p.roleName || 'Role ' + (i + 1))
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji(p.emoji)
-    );
-  });
-
-  rows.push(currentRow);
-  return rows;
-}
-
 async function startSetup(source, client) {
   var guild = source.guild;
   var userId = source.member ? source.member.id : source.user.id;
 
   var data = { pairs: [], channelId: null, title: 'Select Your Roles', guildId: guild.id };
-  setups.set(userId, data);
+  initSetup(userId, data);
 
   var embed = buildPanelEmbed(guild, data);
   var buttons = buildPanelButtons(false, false);
 
   if (source.replied || source.deferred) {
-    var msg = await source.editReply({ embeds: [embed], components: buttons });
+    await source.editReply({ embeds: [embed], components: buttons });
   } else {
-    var msg = await source.reply({ embeds: [embed], components: buttons });
+    await source.reply({ embeds: [embed], components: buttons });
   }
-
-  var collector = msg.createMessageComponentCollector({ time: 300000 });
-
-  collector.on('collect', async function(i) {
-    if (i.user.id !== userId) {
-      return i.reply({ content: 'This setup is not for you.', ephemeral: true });
-    }
-
-    var currentData = setups.get(userId);
-    if (!currentData) {
-      collector.stop('expired');
-      return i.reply({ content: 'Setup expired.', ephemeral: true });
-    }
-
-    if (i.customId === 'rr_add_pair') {
-      var modal = new ModalBuilder()
-        .setCustomId('rr_modal_add')
-        .setTitle('Add Role Pair');
-
-      var roleInput = new TextInputBuilder()
-        .setCustomId('rr_role_input')
-        .setLabel('Role (mention or ID)')
-        .setPlaceholder('@Moderator or 1234567890123456789')
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true);
-
-      var emojiInput = new TextInputBuilder()
-        .setCustomId('rr_emoji_input')
-        .setLabel('Emoji (unicode or custom)')
-        .setPlaceholder('🔴 or :moderator: or <a:star:123>')
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true);
-
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(roleInput),
-        new ActionRowBuilder().addComponents(emojiInput)
-      );
-
-      await i.showModal(modal);
-
-      try {
-        var modalInteraction = await i.awaitModalSubmit({ time: 60000, filter: function(mi) { return mi.user.id === userId; } });
-
-        var roleText = modalInteraction.fields.getTextInputValue('rr_role_input').trim();
-        var emojiText = modalInteraction.fields.getTextInputValue('rr_emoji_input').trim();
-
-        var roleId = null;
-        var roleName = roleText;
-        var roleMentionMatch = roleText.match(/^<@&(\d+)>$/);
-        var directIdMatch = roleText.match(/^\d+$/);
-
-        if (roleMentionMatch) {
-          roleId = roleMentionMatch[1];
-        } else if (directIdMatch) {
-          roleId = directIdMatch[0];
-        } else {
-          var cleanText = roleText.replace(/^@/, '');
-          var found = guild.roles.cache.find(function(r) { return r.name.toLowerCase() === cleanText.toLowerCase(); });
-          if (found) { roleId = found.id; roleName = found.name; }
-        }
-
-        if (!roleId) {
-          return modalInteraction.reply({ embeds: [errorEmbed('Role Not Found', 'Could not find a role matching **' + roleText + '**.')], ephemeral: true });
-        }
-
-        var role = guild.roles.cache.get(roleId);
-        if (role && guild.members.me && role.position >= guild.members.me.roles.highest.position) {
-          return modalInteraction.reply({ embeds: [errorEmbed('Role Too High', 'I cannot assign this role.')], ephemeral: true });
-        }
-
-        var duplicate = currentData.pairs.find(function(p) { return p.emoji === emojiText || p.roleId === roleId; });
-        if (duplicate) {
-          return modalInteraction.reply({ embeds: [errorEmbed('Duplicate', 'This emoji or role is already in the list.')], ephemeral: true });
-        }
-
-        currentData.pairs.push({ roleId: roleId, roleName: roleName, emoji: emojiText });
-        setups.set(userId, currentData);
-
-        var updatedEmbed = buildPanelEmbed(guild, currentData);
-        var updatedButtons = buildPanelButtons(currentData.pairs.length > 0, !!currentData.channelId);
-        await modalInteraction.update({ embeds: [updatedEmbed], components: updatedButtons });
-      } catch (err) {
-        console.error('Modal error:', err.message);
-      }
-      return;
-    }
-
-    if (i.customId === 'rr_remove_pair') {
-      if (currentData.pairs.length === 0) {
-        return i.reply({ embeds: [errorEmbed('Empty', 'No pairs to remove.')], ephemeral: true });
-      }
-
-      var selectMenu = new StringSelectMenuBuilder()
-        .setCustomId('rr_select_remove')
-        .setPlaceholder('Select a pair to remove')
-        .setMinValues(1)
-        .setMaxValues(currentData.pairs.length);
-
-      currentData.pairs.forEach(function(p, idx) {
-        selectMenu.addOptions({
-          label: p.roleName || ('Role ' + (idx + 1)),
-          description: p.emoji + ' \u2192 Role',
-          value: '' + idx,
-        });
-      });
-
-      var selectRow = new ActionRowBuilder().addComponents(selectMenu);
-      return i.reply({ content: '**Select pairs to remove:**', components: [selectRow], ephemeral: true });
-    }
-
-    if (i.customId === 'rr_set_channel') {
-      var channelSelect = new ChannelSelectMenuBuilder()
-        .setCustomId('rr_channel_select')
-        .setPlaceholder('Select a channel for reaction roles')
-        .setChannelTypes(ChannelType.GuildText);
-
-      var channelRow = new ActionRowBuilder().addComponents(channelSelect);
-      return i.reply({ content: '**Select the channel:**', components: [channelRow], ephemeral: true });
-    }
-
-    if (i.customId === 'rr_send') {
-      if (currentData.pairs.length === 0) {
-        return i.reply({ embeds: [errorEmbed('No Pairs', 'Add at least one role pair.')], ephemeral: true });
-      }
-      if (!currentData.channelId) {
-        return i.reply({ embeds: [errorEmbed('No Channel', 'Set a channel first.')], ephemeral: true });
-      }
-
-      var targetChannel = guild.channels.cache.get(currentData.channelId);
-      if (!targetChannel) {
-        return i.reply({ embeds: [errorEmbed('Channel Not Found', 'Channel no longer exists.')], ephemeral: true });
-      }
-
-      var rrEmbed = buildPreviewEmbed(currentData);
-      var rrButtons = buildPreviewButtons(currentData);
-
-      try {
-        var sentMsg = await targetChannel.send({ embeds: [rrEmbed], components: rrButtons });
-
-        var config = await getGuildConfig(guild.id);
-        if (!config.reactionRoles) config.reactionRoles = [];
-        config.reactionRoles.push({
-          messageId: sentMsg.id,
-          channelId: targetChannel.id,
-          title: currentData.title,
-          roles: currentData.pairs.map(function(p) {
-            return { roleId: p.roleId, emoji: p.emoji, roleName: p.roleName };
-          }),
-        });
-        await updateGuildConfig(guild.id, { reactionRoles: config.reactionRoles });
-
-        setups.delete(userId);
-        collector.stop('sent');
-
-        return i.update({
-          embeds: [successEmbed('Reaction Role Sent', emojis.check + ' Sent to ' + targetChannel.toString() + ' with **' + currentData.pairs.length + '** role pair(s).')],
-          components: []
-        });
-      } catch (err) {
-        return i.reply({ embeds: [errorEmbed('Send Failed', err.message)], ephemeral: true });
-      }
-    }
-
-    if (i.customId === 'rr_cancel') {
-      setups.delete(userId);
-      collector.stop('cancelled');
-      return i.update({ embeds: [errorEmbed('Setup Cancelled', 'Reaction role setup cancelled.')], components: [] });
-    }
-  });
-
-  collector.on('end', function(collected, reason) {
-    if (reason === 'sent' || reason === 'cancelled') return;
-    setups.delete(userId);
-    try {
-      msg.edit({ embeds: [errorEmbed('Timed Out', 'Setup expired after 5 minutes.')], components: [] }).catch(function() {});
-    } catch (e) {}
-  });
 }
 
 module.exports = {

@@ -17,9 +17,18 @@ const LANGUAGE_NAMES = {
 function t(lang, key, ...args) {
   const language = lang || 'en';
   const strings = locales[language] || locales.en;
-  const value = strings[key];
+  let value = strings[key];
   if (typeof value === 'function') {
     return value(...args);
+  }
+  if (typeof value === 'string' && args.length > 0) {
+    let argIndex = 0;
+    value = value.replace(/\{([^}]+)\}/g, function(match, name) {
+      const arg = args[argIndex];
+      argIndex++;
+      if (arg === undefined) return match;
+      return String(arg);
+    });
   }
   return value || key;
 }
