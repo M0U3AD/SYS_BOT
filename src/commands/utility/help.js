@@ -20,40 +20,36 @@ module.exports = {
       return message.reply({ embeds: [embed] });
     }
 
-    const moderation = client.commands.filter(c =>
-      ['kick', 'ban', 'mute', 'unmute', 'warn', 'purge'].includes(c.name)
-    );
-    const utility = client.commands.filter(c =>
-      ['ping', 'serverinfo', 'userinfo', 'avatar', 'help'].includes(c.name)
-    );
-    const store = client.commands.filter(c =>
-      ['addproduct', 'products', 'deleteproduct', 'redeem', 'regenerate'].includes(c.name)
-    );
-    const admin = client.commands.filter(c =>
-      ['say', 'announce', 'dm'].includes(c.name)
-    );
+    const moderation = ['ban', 'kick', 'mute', 'unmute', 'warn', 'purge', 'automod'];
+    const community = ['welcome', 'autorole', 'reactionrole', 'verify'];
+    const support = ['ticket', 'apply'];
+    const gaming = ['stats', 'lfg', 'gameroles', 'leaderboard'];
+    const engagement = ['rank', 'levels', 'balance', 'daily', 'pay', 'shop', 'giveaway', 'poll'];
+    const notifications = ['youtube', 'twitch', 'reddit', 'gamenews'];
+    const admin = ['say', 'announce', 'dm', 'logs', 'setup', 'permissions', 'language'];
+    const utility = ['ping', 'serverinfo', 'userinfo', 'avatar', 'help'];
+    const store = ['addproduct', 'products', 'deleteproduct', 'redeem', 'regenerate'];
+
+    const categorize = (names) => names
+      .filter(n => client.commands.has(n))
+      .map(n => client.commands.get(n))
+      .map(c => `\`${config.prefix}${c.name}\` — ${c.description}`)
+      .join('\n') || 'None';
 
     const embed = new EmbedBuilder()
       .setColor(config.embedColor)
-      .setTitle('System Bot — Commands')
-      .setDescription(`Use \`${config.prefix}help <command>\` for more info on a command.`)
+      .setTitle('SYS-F1ex — Commands')
+      .setDescription(`Use \`${config.prefix}help <command>\` for more info.\nSlash commands (/) are also available for most features.`)
       .addFields(
-        {
-          name: 'Moderation',
-          value: moderation.map(c => `\`${config.prefix}${c.name}\` — ${c.description}`).join('\n') || 'None',
-        },
-        {
-          name: 'Utility',
-          value: utility.map(c => `\`${config.prefix}${c.name}\` — ${c.description}`).join('\n') || 'None',
-        },
-        {
-          name: 'Store',
-          value: store.map(c => `\`${config.prefix}${c.name}\` — ${c.description}`).join('\n') || 'None',
-        },
-        {
-          name: 'Admin',
-          value: admin.map(c => `\`${config.prefix}${c.name}\` — ${c.description}`).join('\n') || 'None',
-        },
+        { name: '🛡️ Moderation', value: categorize(moderation) },
+        { name: '👋 Community', value: categorize(community) },
+        { name: '🎫 Support', value: categorize(support) },
+        { name: '🎮 Gaming', value: categorize(gaming) },
+        { name: '🎉 Engagement', value: categorize(engagement) },
+        { name: '🔔 Notifications', value: categorize(notifications) },
+        { name: '⚙️ Admin', value: categorize(admin) },
+        { name: '📋 Utility', value: categorize(utility) },
+        { name: '🛒 Store', value: categorize(store) },
       )
       .setTimestamp();
 

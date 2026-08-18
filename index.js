@@ -1,6 +1,8 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
+const { connectDatabase } = require('./src/database/connection');
 const { loadCommands } = require('./src/utils/commandHandler');
+const { registerSlashCommands } = require('./src/utils/slashCommandHandler');
 const { loadEvents } = require('./src/utils/eventHandler');
 const { setupCommandTracking } = require('./src/utils/botStats');
 const createServer = require('./src/api/server');
@@ -12,13 +14,22 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildModeration,
+    GatewayIntentBits.GuildMessageReactions,
   ],
-  partials: [Partials.Message, Partials.Channel],
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction],
 });
 
-loadCommands(client);
-loadEvents(client);
-setupCommandTracking(client);
-createServer(client);
+(async () => {
+  await connectDatabase();
+  loadCommands(client);
+  loadEvents(client);
+  setupCommandTracking(client);
+  createServer(client);
 
-client.login(process.env.TOKEN);
+  client.once('ready', async () => {
+    console.log(`Logged in as ${client.user.tag}`);
+    await registerSlashCommands(client);
+  });
+
+  client.login(process.env.TOKEN);
+})();

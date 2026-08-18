@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SYS-F1ex Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0d1117; color: #c9d1d9; min-height: 100vh; }
+    .navbar { background: #161b22; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #30363d; }
+    .navbar h1 { font-size: 1.5rem; color: #58a6ff; }
+    .navbar a { color: #58a6ff; text-decoration: none; padding: 8px 16px; border-radius: 6px; transition: background 0.2s; }
+    .navbar a:hover { background: #21262d; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 32px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 24px; transition: transform 0.2s, box-shadow 0.2s; }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+    .card h2 { color: #f0f6fc; margin-bottom: 12px; font-size: 1.2rem; }
+    .card p { color: #8b949e; margin-bottom: 16px; }
+    .card .status { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+    .status.on { background: #238636; color: #fff; }
+    .status.off { background: #da3633; color: #fff; }
+    .btn { display: inline-block; padding: 8px 20px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.2s; text-decoration: none; }
+    .btn-primary { background: #58a6ff; color: #fff; }
+    .btn-primary:hover { background: #79c0ff; }
+    .btn-danger { background: #da3633; color: #fff; }
+    .btn-success { background: #238636; color: #fff; }
+    .hero { text-align: center; padding: 60px 0; }
+    .hero h1 { font-size: 3rem; color: #f0f6fc; margin-bottom: 16px; }
+    .hero p { color: #8b949e; font-size: 1.2rem; margin-bottom: 32px; }
+    .stats { display: flex; justify-content: center; gap: 40px; margin-top: 40px; }
+    .stat { text-align: center; }
+    .stat .number { font-size: 2rem; font-weight: 700; color: #58a6ff; }
+    .stat .label { color: #8b949e; font-size: 0.9rem; }
+    .server-select { background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; padding: 12px; border-radius: 8px; width: 100%; font-size: 1rem; margin-bottom: 20px; }
+    .login-section { text-align: center; padding: 80px 0; }
+    .login-btn { font-size: 1.2rem; padding: 16px 40px; }
+    #user-info { display: none; }
+    .feature-icon { font-size: 2rem; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <h1>SYS-F1ex</h1>
+    <div>
+      <a href="#features">Features</a>
+      <a href="#servers">Servers</a>
+      <a href="/api/auth/login" class="btn btn-primary" id="login-btn">Login with Discord</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <section class="hero" id="home">
+      <h1>SYS-F1ex</h1>
+      <p>Full-featured Discord bot with moderation, logging, community, gaming, and more.</p>
+      <a href="/api/auth/login" class="btn btn-primary login-btn" id="hero-login">Get Started</a>
+      <div class="stats" id="bot-stats">
+        <div class="stat"><div class="number" id="stat-servers">-</div><div class="label">Servers</div></div>
+        <div class="stat"><div class="number" id="stat-users">-</div><div class="label">Users</div></div>
+        <div class="stat"><div class="number" id="stat-commands">-</div><div class="label">Commands Today</div></div>
+        <div class="stat"><div class="number" id="stat-uptime">-</div><div class="label">Uptime</div></div>
+      </div>
+    </section>
+
+    <section id="features" style="display:none">
+      <h2 style="margin-bottom:20px; font-size:1.5rem;">Bot Features</h2>
+      <div class="grid">
+        <div class="card"><div class="feature-icon">🛡️</div><h2>Moderation</h2><p>Ban, kick, mute, warn, purge, and auto-moderation with anti-spam, anti-link, and bad word filters.</p><span class="status on">Active</span></div>
+        <div class="card"><div class="feature-icon">📋</div><h2>Logging</h2><p>Mod logs, member logs, message logs, and server logs to configured channels.</p><span class="status on">Active</span></div>
+        <div class="card"><div class="feature-icon">👋</div><h2>Community</h2><p>Welcome/goodbye messages, auto-roles, reaction roles, and verification system.</p><span class="status on">Active</span></div>
+        <div class="card"><div class="feature-icon">🎫</div><h2>Support</h2><p>Ticket system with transcripts and staff applications with review workflow.</p><span class="status on">Active</span></div>
+        <div class="card"><div class="feature-icon">🎮</div><h2>Gaming</h2><p>Game stats, LFG, game roles, and leaderboards.</p><span class="status on">Active</span></div>
+        <div class="card"><div class="feature-icon">🎉</div><h2>Engagement</h2><p>XP/levels, economy, giveaways, and polls.</p><span class="status on">Active</span></div>
+        <div class="card"><div class="feature-icon">🔔</div><h2>Notifications</h2><p>YouTube, Twitch, Reddit, and game news RSS feed notifications.</p><span class="status on">Active</span></div>
+        <div class="card"><div class="feature-icon">⚙️</div><h2>Configuration</h2><p>Interactive setup wizard, permissions, language support, and dashboard.</p><span class="status on">Active</span></div>
+      </div>
+    </section>
+
+    <section id="servers" style="display:none">
+      <h2 style="margin-bottom:20px; font-size:1.5rem;">Your Servers</h2>
+      <div id="server-list"><p>Loading servers...</p></div>
+    </section>
+  </div>
+
+  <script>
+    const API = '/api';
+
+    async function checkAuth() {
+      try {
+        const res = await fetch(`${API}/auth/me`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById('login-btn').textContent = data.user.username;
+          document.getElementById('login-btn').href = '#servers';
+          document.getElementById('hero-login').textContent = 'Go to Dashboard';
+          document.getElementById('hero-login').href = '#servers';
+          document.getElementById('features').style.display = 'block';
+          document.getElementById('servers').style.display = 'block';
+          loadServers();
+        }
+      } catch {}
+    }
+
+    async function loadStats() {
+      try {
+        const res = await fetch(`${API}/bot/stats`);
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById('stat-servers').textContent = data.servers || 0;
+          document.getElementById('stat-users').textContent = data.users?.toLocaleString() || 0;
+          document.getElementById('stat-commands').textContent = data.commandsToday || 0;
+          document.getElementById('stat-uptime').textContent = data.uptime || '0m';
+        }
+      } catch {}
+    }
+
+    async function loadServers() {
+      try {
+        const res = await fetch(`${API}/servers`, { credentials: 'include' });
+        if (res.ok) {
+          const servers = await res.json();
+          const container = document.getElementById('server-list');
+          if (!servers.length) {
+            container.innerHTML = '<p>No servers found.</p>';
+            return;
+          }
+          container.innerHTML = servers.map(s => `
+            <div class="card" style="margin-bottom:12px; display:flex; align-items:center; gap:16px;">
+              ${s.icon ? `<img src="https://cdn.discordapp.com/icons/${s.id}/${s.icon}.png" width="48" height="48" style="border-radius:50%;">` : '<div style="width:48px;height:48px;background:#30363d;border-radius:50%;"></div>'}
+              <div style="flex:1;"><h3>${s.name}</h3><p style="margin:0;color:#8b949e;font-size:0.85rem;">${s.memberCount || '?'} members ${s.hasBot ? '✅ Bot in server' : '⚠️ Bot not in server'}</p></div>
+              ${s.hasBot ? `<a href="#settings" class="btn btn-primary">Configure</a>` : `<a href="https://discord.com/api/oauth2/authorize?client_id=${s.botId}&permissions=8&scope=bot&guild_id=${s.id}" target="_blank" class="btn btn-success">Invite Bot</a>`}
+            </div>
+          `).join('');
+        }
+      } catch { document.getElementById('server-list').innerHTML = '<p>Failed to load servers.</p>'; }
+    }
+
+    checkAuth();
+    loadStats();
+  </script>
+</body>
+</html>
