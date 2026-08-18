@@ -1,9 +1,8 @@
-const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { errorEmbed, infoEmbed } = require('../../utils/embeds');
 const Member = require('../../database/models/Member');
 const { getGuildConfig } = require('../../database/utils/GuildConfig');
 const { xpForLevel } = require('../../utils/xp');
-const { createCanvas } = require('canvas');
 
 module.exports = {
   name: 'rank',
