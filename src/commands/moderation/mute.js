@@ -1,5 +1,6 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const { successEmbed, errorEmbed } = require('../../utils/embeds');
+const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { successEmbed, errorEmbed, confirmEmbed, modEmbed, COLORS } = require('../../utils/embeds');
+const emojis = require('../../utils/emojis');
 const Log = require('../../database/models/Log');
 const { getGuildConfig } = require('../../database/utils/GuildConfig');
 
@@ -14,44 +15,194 @@ module.exports = {
     .addIntegerOption(opt => opt.setName('minutes').setDescription('Duration in minutes').setRequired(true))
     .addStringOption(opt => opt.setName('reason').setDescription('Reason for mute'))
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+
   async execute(message, args) {
     if (!message.member.permissions.has('ModerateMembers')) {
-      return message.reply({ embeds: [errorEmbed('Permission Denied', 'You need the Moderate Members permission.')] });
+      return message.reply({ embeds: [errorEmbed('Access Denied', 'You need the `Moderate Members` permission.')] });
     }
+
     const member = message.mentions.members.first();
     if (!member) {
-      return message.reply({ embeds: [errorEmbed('Invalid Usage', '`!mute <@user> <minutes> [reason]`')] });
+      return message.reply({ embeds: [errorEmbed('Invalid Target', '`!mute <@user> <minutes> [reason]`')] });
     }
+
+    if (member.id === message.author.id) {
+      return message.reply({ embeds: [errorEmbed('Self-Action', 'You cannot mute yourself.')] });
+    }
+
     const minutes = parseInt(args[1]);
     if (isNaN(minutes) || minutes < 1 || minutes > 40320) {
-      return message.reply({ embeds: [errorEmbed('Invalid Duration', 'Please provide a duration between 1 and 40320 minutes.')] });
+      return message.reply({ embeds: [errorEmbed('Invalid Duration', 'Duration must be between **1** and **40320** minutes (28 days).')] });
     }
-    const reason = args.slice(2).join(' ') || 'No reason provided';
-    await member.timeout(minutes * 60 * 1000, reason);
-    message.reply({ embeds: [successEmbed('Member Muted', `**${member.user.tag}** has been muted for **${minutes}** minute(s).\n**Reason:** ${reason}`)] });
 
-    const config = await getGuildConfig(message.guild.id);
-    if (config.logging.modLogChannelId) {
-      const ch = message.guild.channels.cache.get(config.logging.modLogChannelId);
-      if (ch) ch.send({ embeds: [successEmbed('Member Muted', `**User:** ${member.user.tag}\n**Moderator:** ${message.author.tag}\n**Duration:** ${minutes}m\n**Reason:** ${reason}`)] });
-    }
-    await Log.addLog(message.guild.id, 'mod', 'mute', message.author.id, member.id, `${reason} (${minutes}m)`);
+    const reason = args.slice(2).join(' ') || 'No reason provided';
+
+    const durationStr = minutes >= 1440 ? Math.floor(minutes / 1440) + 'd ' + Math.floor((minutes % 1440) / 60) + 'h' :
+                        minutes >= 60 ? Math.floor(minutes / 60) + 'h ' + (minutes % 60) + 'm' :
+                        minutes + 'm';
+
+    const confirm = confirmEmbed(
+      emojis.mute,
+      'Mute Confirmation',
+      [
+        '**Target:** ' + member.user.tag + ' (`' + member.id + '`)',
+        '**Duration:** ' + durationStr + ' (' + minutes + ' minutes)',
+        '**Reason:** ' + reason,
+        '**Moderator:** ' + message.author.tag,
+      ].join('\n'),
+      { thumbnail: member.user.displayAvatarURL({ dynamic: true }) }
+    );
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('mod_confirm_mute_' + message.author.id)
+        .setLabel('Confirm Mute')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji(emojis.mute),
+      new ButtonBuilder()
+        .setCustomId('mod_cancel_' + message.author.id)
+        .setLabel('Cancel')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji(emojis.cross)
+    );
+
+    const msg = await message.reply({ embeds: [confirm], components: [row] });
+
+    const collector = msg.createMessageComponentCollector({ time: 30000 });
+    collector.on('collect', async (i) => {
+      if (i.user.id !== message.author.id) {
+        return i.reply({ content: 'This is not for you.', ephemeral: true });
+      }
+
+      if (i.customId === 'mod_cancel_' + message.author.id) {
+        collector.stop('cancelled');
+        return i.update({ embeds: [errorEmbed('Mute Cancelled', 'Action was cancelled by ' + message.author.tag + '.')], components: [] });
+      }
+
+      if (i.customId === 'mod_confirm_mute_' + message.author.id) {
+        collector.stop('confirmed');
+        try {
+          await member.timeout(minutes * 60 * 1000, reason);
+
+          const logEmbed = modEmbed(emojis.mute, 'Member Muted', [
+            { name: emojis.user + ' Target', value: member.user.tag + ' (`' + member.id + '`)', inline: true },
+            { name: emojis.gavel + ' Moderator', value: message.author.tag, inline: true },
+            { name: emojis.dots + ' Duration', value: durationStr, inline: true },
+            { name: emojis.tag + ' Reason', value: reason, inline: false },
+          ], { color: COLORS.warning, thumbnail: member.user.displayAvatarURL({ dynamic: true }) });
+
+          await i.update({ embeds: [logEmbed], components: [] });
+
+          const config = await getGuildConfig(message.guild.id);
+          if (config.logging.modLogChannelId) {
+            const ch = message.guild.channels.cache.get(config.logging.modLogChannelId);
+            if (ch) ch.send({ embeds: [logEmbed] });
+          }
+          await Log.addLog(message.guild.id, 'mod', 'mute', message.author.id, member.id, reason + ' (' + durationStr + ')');
+        } catch (err) {
+          await i.update({ embeds: [errorEmbed('Mute Failed', 'An error occurred: ' + err.message)], components: [] });
+        }
+      }
+    });
+
+    collector.on('end', async (collected, reason) => {
+      if (reason === 'confirmed' || reason === 'cancelled') return;
+      try {
+        await msg.edit({ embeds: [errorEmbed('Timed Out', 'Confirmation expired. Action was not executed.')], components: [] });
+      } catch {}
+    });
   },
+
   async slashExecute(interaction, client) {
     const user = interaction.options.getUser('user');
     const minutes = interaction.options.getInteger('minutes');
     const reason = interaction.options.getString('reason') || 'No reason provided';
     const member = interaction.guild.members.cache.get(user.id);
-    if (!member) return interaction.reply({ embeds: [errorEmbed('Not Found', 'User not in this server.')], ephemeral: true });
-    if (!member.moderatable) return interaction.reply({ embeds: [errorEmbed('Cannot Mute', 'I cannot mute this user.')], ephemeral: true });
-    await member.timeout(minutes * 60 * 1000, reason);
-    interaction.reply({ embeds: [successEmbed('Member Muted', `**${user.tag}** has been muted for **${minutes}** minute(s).\n**Reason:** ${reason}`)] });
 
-    const config = await getGuildConfig(interaction.guild.id);
-    if (config.logging.modLogChannelId) {
-      const ch = interaction.guild.channels.cache.get(config.logging.modLogChannelId);
-      if (ch) ch.send({ embeds: [successEmbed('Member Muted', `**User:** ${user.tag}\n**Moderator:** ${interaction.user.tag}\n**Duration:** ${minutes}m\n**Reason:** ${reason}`)] });
+    if (!member) {
+      return interaction.reply({ embeds: [errorEmbed('Not Found', 'User is not in this server.')], ephemeral: true });
     }
-    await Log.addLog(interaction.guild.id, 'mod', 'mute', interaction.user.id, user.id, `${reason} (${minutes}m)`);
+    if (!member.moderatable) {
+      return interaction.reply({ embeds: [errorEmbed('Cannot Mute', 'I cannot mute this user.')], ephemeral: true });
+    }
+    if (member.id === interaction.user.id) {
+      return interaction.reply({ embeds: [errorEmbed('Self-Action', 'You cannot mute yourself.')], ephemeral: true });
+    }
+
+    const durationStr = minutes >= 1440 ? Math.floor(minutes / 1440) + 'd ' + Math.floor((minutes % 1440) / 60) + 'h' :
+                        minutes >= 60 ? Math.floor(minutes / 60) + 'h ' + (minutes % 60) + 'm' :
+                        minutes + 'm';
+
+    const confirm = confirmEmbed(
+      emojis.mute,
+      'Mute Confirmation',
+      [
+        '**Target:** ' + user.tag + ' (`' + user.id + '`)',
+        '**Duration:** ' + durationStr + ' (' + minutes + ' minutes)',
+        '**Reason:** ' + reason,
+        '**Moderator:** ' + interaction.user.tag,
+      ].join('\n'),
+      { thumbnail: user.displayAvatarURL({ dynamic: true }) }
+    );
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('mod_confirm_mute_' + interaction.user.id)
+        .setLabel('Confirm Mute')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji(emojis.mute),
+      new ButtonBuilder()
+        .setCustomId('mod_cancel_' + interaction.user.id)
+        .setLabel('Cancel')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji(emojis.cross)
+    );
+
+    await interaction.reply({ embeds: [confirm], components: [row] });
+    const msg = await interaction.fetchReply();
+
+    const collector = msg.createMessageComponentCollector({ time: 30000 });
+    collector.on('collect', async (i) => {
+      if (i.user.id !== interaction.user.id) {
+        return i.reply({ content: 'This is not for you.', ephemeral: true });
+      }
+
+      if (i.customId === 'mod_cancel_' + interaction.user.id) {
+        collector.stop('cancelled');
+        return i.update({ embeds: [errorEmbed('Mute Cancelled', 'Action was cancelled.')], components: [] });
+      }
+
+      if (i.customId === 'mod_confirm_mute_' + interaction.user.id) {
+        collector.stop('confirmed');
+        try {
+          await member.timeout(minutes * 60 * 1000, reason);
+
+          const logEmbed = modEmbed(emojis.mute, 'Member Muted', [
+            { name: emojis.user + ' Target', value: user.tag + ' (`' + user.id + '`)', inline: true },
+            { name: emojis.gavel + ' Moderator', value: interaction.user.tag, inline: true },
+            { name: emojis.dots + ' Duration', value: durationStr, inline: true },
+            { name: emojis.tag + ' Reason', value: reason, inline: false },
+          ], { color: COLORS.warning, thumbnail: user.displayAvatarURL({ dynamic: true }) });
+
+          await i.update({ embeds: [logEmbed], components: [] });
+
+          const config = await getGuildConfig(interaction.guild.id);
+          if (config.logging.modLogChannelId) {
+            const ch = interaction.guild.channels.cache.get(config.logging.modLogChannelId);
+            if (ch) ch.send({ embeds: [logEmbed] });
+          }
+          await Log.addLog(interaction.guild.id, 'mod', 'mute', interaction.user.id, user.id, reason + ' (' + durationStr + ')');
+        } catch (err) {
+          await i.update({ embeds: [errorEmbed('Mute Failed', err.message)], components: [] });
+        }
+      }
+    });
+
+    collector.on('end', async (collected, reason) => {
+      if (reason === 'confirmed' || reason === 'cancelled') return;
+      try {
+        await msg.edit({ embeds: [errorEmbed('Timed Out', 'Confirmation expired. Action was not executed.')], components: [] });
+      } catch {}
+    });
   },
 };

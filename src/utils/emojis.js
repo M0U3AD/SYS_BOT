@@ -1,0 +1,81 @@
+const emojis = {
+  // Core
+  check: '✅',
+  cross: '❌',
+  warning: '⚠️',
+  info: 'ℹ️',
+  question: '❓',
+  arrow: '➡️',
+  arrow_left: '⬅️',
+  dots: '⏳',
+  shield: '🛡️',
+  star: '⭐',
+  fire: '🔥',
+  crown: '👑',
+  gem: '💎',
+  bolt: '⚡',
+  eye: '👁️',
+  lock: '🔒',
+  unlock: '🔓',
+  trash: '🗑️',
+  gear: '⚙️',
+
+  // Moderation
+  ban: '🔨',
+  kick: '👢',
+  mute: '🔇',
+  unmute: '🔊',
+  warn: '⚠️',
+  purge: '🧹',
+  gavel: '⚖️',
+
+  // Actions
+  confirm: '✅',
+  cancel: '❌',
+  accept: '👍',
+  deny: '👎',
+  save: '💾',
+  edit: '✏️',
+  add: '➕',
+  remove: '➖',
+  refresh: '🔄',
+
+  // Features
+  ticket: '🎫',
+  giveaway: '🎉',
+  poll: '📊',
+  xp: '📈',
+  coin: '🪙',
+  shop: '🛒',
+  notify: '🔔',
+  rss: '📡',
+  globe: '🌍',
+  link: '🔗',
+  tag: '🏷️',
+  hash: '#️�️',
+  bot: '🤖',
+  user: '👤',
+  members: '👥',
+  chart: '📊',
+  inbox: '📥',
+  outbox: '📤',
+
+  // Reaction Role
+  role: '🎭',
+  palette: '🎨',
+  list: '📋',
+  create: '✨',
+  delete_item: '🗑️',
+  channel: '📢',
+  preview: '👁️‍🗨️',
+  send: '📨',
+  select: '🔘',
+
+  // Status
+  online: '🟢',
+  offline: '⚫',
+  idle: '🟡',
+  dnd: '🔴',
+};
+
+module.exports = emojis;

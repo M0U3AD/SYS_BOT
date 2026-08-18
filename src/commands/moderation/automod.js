@@ -1,5 +1,6 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
+const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { successEmbed, errorEmbed, infoEmbed, modEmbed, COLORS } = require('../../utils/embeds');
+const emojis = require('../../utils/emojis');
 const { getGuildConfig, updateGuildConfig } = require('../../database/utils/GuildConfig');
 
 module.exports = {
@@ -27,55 +28,76 @@ module.exports = {
         .addChoices({ name: 'Add', value: 'add' }, { name: 'Remove', value: 'remove' }))
       .addStringOption(opt => opt.setName('word').setDescription('Word').setRequired(true)))
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+
   async execute(message, args) {
     if (!message.member.permissions.has('ManageGuild')) {
-      return message.reply({ embeds: [errorEmbed('Permission Denied', 'You need the Manage Server permission.')] });
+      return message.reply({ embeds: [errorEmbed('Access Denied', 'You need the `Manage Server` permission.')] });
     }
 
     if (args[0] === 'enable') {
       await updateGuildConfig(message.guild.id, { 'moderation.automod.enabled': true });
-      return message.reply({ embeds: [successEmbed('AutoMod Enabled', 'Auto-moderation is now active. Use `!automod config` to configure rules.')] });
+      return message.reply({ embeds: [successEmbed('AutoMod Enabled', emojis.shield + ' Auto-moderation is now **active**.\nUse `!automod config` to configure rules.')] });
     }
+
     if (args[0] === 'disable') {
       await updateGuildConfig(message.guild.id, { 'moderation.automod.enabled': false });
-      return message.reply({ embeds: [successEmbed('AutoMod Disabled', 'Auto-moderation is now off.')] });
+      return message.reply({ embeds: [infoEmbed('AutoMod Disabled', emojis.shield + ' Auto-moderation has been **disabled**.')] });
     }
+
     if (args[0] === 'config') {
       const config = await getGuildConfig(message.guild.id);
       const a = config.moderation.automod;
-      return message.reply({ embeds: [infoEmbed('AutoMod Config',
-        `**Enabled:** ${a.enabled}\n**Anti-Spam:** ${a.antiSpam}\n**Anti-Link:** ${a.antiLink}\n**Anti-Invite:** ${a.antiInvite}\n**Max Mentions:** ${a.maxMentions}\n**Bad Words:** ${a.badWords.length} word(s)\n**Log Channel:** ${a.logChannelId ? `<#${a.logChannelId}>` : 'Not set'}`
-      )] });
+
+      const embed = modEmbed(emojis.shield, 'AutoMod Configuration', [
+        { name: emojis.bolt + ' Status', value: a.enabled ? 'Enabled' : 'Disabled', inline: true },
+        { name: emojis.bolt + ' Anti-Spam', value: a.antiSpam ? 'On' : 'Off', inline: true },
+        { name: emojis.link + ' Anti-Link', value: a.antiLink ? 'On' : 'Off', inline: true },
+        { name: emojis.link + ' Anti-Invite', value: a.antiInvite ? 'On' : 'Off', inline: true },
+        { name: emojis.warning + ' Max Mentions', value: '' + a.maxMentions, inline: true },
+        { name: emojis.trash + ' Bad Words', value: a.badWords.length + ' word(s)', inline: true },
+        { name: emojis.channel + ' Log Channel', value: a.logChannelId ? '<#' + a.logChannelId + '>' : 'Not set', inline: true },
+      ], { color: COLORS.primary });
+
+      return message.reply({ embeds: [embed] });
     }
+
     if (args[0] === 'word') {
       const action = args[1];
-      const word = args[2]?.toLowerCase();
-      if (!action || !word) return message.reply({ embeds: [errorEmbed('Invalid Usage', '`!automod word <add|remove> <word>`')] });
+      const word = args[2] ? args[2].toLowerCase() : null;
+      if (!action || !word) {
+        return message.reply({ embeds: [errorEmbed('Invalid Usage', '`!automod word <add|remove> <word>`')] });
+      }
+
       const config = await getGuildConfig(message.guild.id);
       let words = config.moderation.automod.badWords || [];
+
       if (action === 'add') {
-        if (words.includes(word)) return message.reply({ embeds: [errorEmbed('Duplicate', 'Word already in the list.')] });
+        if (words.includes(word)) return message.reply({ embeds: [errorEmbed('Duplicate', 'Word is already in the list.')] });
         words.push(word);
       } else {
-        words = words.filter(w => w !== word);
+        words = words.filter(function(w) { return w !== word; });
       }
+
       await updateGuildConfig(message.guild.id, { 'moderation.automod.badWords': words });
-      return message.reply({ embeds: [successEmbed('Updated', `Bad word **${word}** ${action === 'add' ? 'added' : 'removed'}.`)] });
+      return message.reply({ embeds: [successEmbed('Word Updated', emojis.check + ' **' + word + '** has been ' + (action === 'add' ? 'added to' : 'removed from') + ' the blocked words list.')] });
     }
 
     return message.reply({ embeds: [errorEmbed('Invalid Usage', '`!automod enable|disable|config|word`')] });
   },
+
   async slashExecute(interaction, client) {
     const sub = interaction.options.getSubcommand();
 
     if (sub === 'enable') {
       await updateGuildConfig(interaction.guild.id, { 'moderation.automod.enabled': true });
-      return interaction.reply({ embeds: [successEmbed('AutoMod Enabled', 'Active. Configure with `/automod config`.')] });
+      return interaction.reply({ embeds: [successEmbed('AutoMod Enabled', emojis.shield + ' Auto-moderation is now **active**.')] });
     }
+
     if (sub === 'disable') {
       await updateGuildConfig(interaction.guild.id, { 'moderation.automod.enabled': false });
-      return interaction.reply({ embeds: [successEmbed('AutoMod Disabled', 'Off.')] });
+      return interaction.reply({ embeds: [infoEmbed('AutoMod Disabled', emojis.shield + ' Auto-moderation has been **disabled**.')] });
     }
+
     if (sub === 'config') {
       const update = {};
       const antiSpam = interaction.options.getBoolean('anti_spam');
@@ -89,19 +111,27 @@ module.exports = {
       if (antiLink !== null) update['moderation.automod.antiLink'] = antiLink;
       if (antiInvite !== null) update['moderation.automod.antiInvite'] = antiInvite;
       if (maxMentions !== null) update['moderation.automod.maxMentions'] = maxMentions;
-      if (badWords) update['moderation.automod.badWords'] = badWords.split(',').map(w => w.trim().toLowerCase());
+      if (badWords) update['moderation.automod.badWords'] = badWords.split(',').map(function(w) { return w.trim().toLowerCase(); });
       if (logChannel) update['moderation.automod.logChannelId'] = logChannel.id;
 
       if (Object.keys(update).length === 0) {
         const config = await getGuildConfig(interaction.guild.id);
         const a = config.moderation.automod;
-        return interaction.reply({ embeds: [infoEmbed('AutoMod Config',
-          `**Anti-Spam:** ${a.antiSpam}\n**Anti-Link:** ${a.antiLink}\n**Anti-Invite:** ${a.antiInvite}\n**Max Mentions:** ${a.maxMentions}\n**Bad Words:** ${a.badWords.length}`
-        )], ephemeral: true });
+
+        const embed = modEmbed(emojis.shield, 'AutoMod Configuration', [
+          { name: emojis.bolt + ' Status', value: a.enabled ? 'Enabled' : 'Disabled', inline: true },
+          { name: emojis.bolt + ' Anti-Spam', value: a.antiSpam ? 'On' : 'Off', inline: true },
+          { name: emojis.link + ' Anti-Link', value: a.antiLink ? 'On' : 'Off', inline: true },
+          { name: emojis.link + ' Anti-Invite', value: a.antiInvite ? 'On' : 'Off', inline: true },
+          { name: emojis.warning + ' Max Mentions', value: '' + a.maxMentions, inline: true },
+          { name: emojis.trash + ' Bad Words', value: a.badWords.length + ' word(s)', inline: true },
+        ], { color: COLORS.primary });
+
+        return interaction.reply({ embeds: [embed], ephemeral: true });
       }
 
       await updateGuildConfig(interaction.guild.id, update);
-      return interaction.reply({ embeds: [successEmbed('AutoMod Updated', 'Settings saved.')] });
+      return interaction.reply({ embeds: [successEmbed('AutoMod Updated', emojis.check + ' Settings have been saved.')] });
     }
 
     if (sub === 'word') {
@@ -109,14 +139,16 @@ module.exports = {
       const word = interaction.options.getString('word').toLowerCase();
       const config = await getGuildConfig(interaction.guild.id);
       let words = config.moderation.automod.badWords || [];
+
       if (action === 'add') {
-        if (words.includes(word)) return interaction.reply({ embeds: [errorEmbed('Duplicate', 'Already in list.')], ephemeral: true });
+        if (words.includes(word)) return interaction.reply({ embeds: [errorEmbed('Duplicate', 'Word is already in the list.')], ephemeral: true });
         words.push(word);
       } else {
-        words = words.filter(w => w !== word);
+        words = words.filter(function(w) { return w !== word; });
       }
+
       await updateGuildConfig(interaction.guild.id, { 'moderation.automod.badWords': words });
-      return interaction.reply({ embeds: [successEmbed('Updated', `**${word}** ${action === 'add' ? 'added' : 'removed'}.`)] });
+      return interaction.reply({ embeds: [successEmbed('Word Updated', emojis.check + ' **' + word + '** has been ' + (action === 'add' ? 'added' : 'removed') + '.')] });
     }
   },
 };

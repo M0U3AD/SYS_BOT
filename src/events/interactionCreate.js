@@ -29,6 +29,11 @@ module.exports = {
 
     // Buttons
     if (interaction.isButton()) {
+      // Reaction Role toggle buttons
+      if (interaction.customId.startsWith('rr_toggle_')) {
+        return handleReactionRoleToggle(interaction);
+      }
+
       // Verification button
       if (interaction.customId.startsWith('verify_')) {
         const userId = interaction.customId.replace('verify_', '');
@@ -86,8 +91,59 @@ module.exports = {
         }
       }
     }
+
+    // Select menus (StringSelect)
+    if (interaction.isStringSelectMenu()) {
+      if (interaction.customId === 'rr_select_remove') {
+        return handleReactionRoleSelectRemove(interaction);
+      }
+    }
+
+    // Channel select menus
+    if (interaction.isChannelSelectMenu()) {
+      if (interaction.customId === 'rr_channel_select') {
+        return handleReactionRoleChannelSelect(interaction);
+      }
+    }
   },
 };
+
+async function handleReactionRoleToggle(interaction) {
+  const index = parseInt(interaction.customId.replace('rr_toggle_', ''));
+  const config = await getGuildConfig(interaction.guild.id);
+  const rr = (config.reactionRoles || []).find(r => r.messageId === interaction.message.id);
+  if (!rr || !rr.roles[index]) {
+    return interaction.reply({ content: 'This reaction role is no longer valid.', ephemeral: true });
+  }
+
+  const roleData = rr.roles[index];
+  const role = interaction.guild.roles.cache.get(roleData.roleId);
+  if (!role) {
+    return interaction.reply({ content: 'Role not found.', ephemeral: true });
+  }
+
+  try {
+    if (interaction.member.roles.cache.has(role.id)) {
+      await interaction.member.roles.remove(role);
+      return interaction.reply({ content: `Removed role **${role.name}**.`, ephemeral: true });
+    } else {
+      await interaction.member.roles.add(role);
+      return interaction.reply({ content: `Added role **${role.name}**.`, ephemeral: true });
+    }
+  } catch {
+    return interaction.reply({ content: 'Failed to manage role. Contact a mod.', ephemeral: true });
+  }
+}
+
+function handleReactionRoleSelectRemove(interaction) {
+  // Handled by reactionrole command's collector — fallback
+  return interaction.reply({ content: 'This interaction has expired. Run the setup again.', ephemeral: true });
+}
+
+function handleReactionRoleChannelSelect(interaction) {
+  // Handled by reactionrole command's collector — fallback
+  return interaction.reply({ content: 'This interaction has expired. Run the setup again.', ephemeral: true });
+}
 
 async function handleTicketCreate(interaction, client) {
   const config = await getGuildConfig(interaction.guild.id);
@@ -116,9 +172,10 @@ async function handleTicketCreate(interaction, client) {
 
   const embed = new EmbedBuilder()
     .setColor(config.embedColor)
-    .setTitle('Support Ticket')
+    .setTitle('🎫 Support Ticket')
     .setDescription(`Welcome ${interaction.user}! Describe your issue and a staff member will assist you.`)
-    .setTimestamp();
+    .setTimestamp()
+    .setFooter({ text: 'SYS-F1ex' });
 
   const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
   const row = new ActionRowBuilder().addComponents(
@@ -150,7 +207,7 @@ async function handleTicketClose(interaction, client) {
     if (ch) {
       const embed = new EmbedBuilder()
         .setColor('#ED4245')
-        .setTitle('Ticket Transcript')
+        .setTitle('🎫 Ticket Transcript')
         .setDescription(`Ticket by <@${ticket.creatorId}> — Closed by <@${interaction.user.id}>`)
         .addFields({ name: 'Transcript', value: transcript.substring(0, 4000) || 'Empty' })
         .setTimestamp();
@@ -158,7 +215,7 @@ async function handleTicketClose(interaction, client) {
     }
   }
 
-  await interaction.reply({ embeds: [new EmbedBuilder().setColor('#ED4245').setDescription('Ticket closed. Deleting in 5s.').setTimestamp()] });
+  await interaction.reply({ embeds: [new EmbedBuilder().setColor('#ED4245').setDescription('🔒 Ticket closed. Deleting in 5s.').setTimestamp()] });
   setTimeout(() => interaction.channel.delete().catch(() => {}), 5000);
 }
 
@@ -168,7 +225,7 @@ async function handleTicketClaim(interaction, client) {
   if (!ticket) return interaction.reply({ content: 'Ticket not found.', ephemeral: true });
   ticket.claimedBy = interaction.user.id;
   await ticket.save();
-  await interaction.reply({ embeds: [new EmbedBuilder().setColor('#57F287').setDescription(`Ticket claimed by ${interaction.user}`).setTimestamp()] });
+  await interaction.reply({ embeds: [new EmbedBuilder().setColor('#57F287').setDescription(`🙋 Ticket claimed by ${interaction.user}`).setTimestamp()] });
 }
 
 async function handleApplicationReview(interaction, client) {
