@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
-const { successEmbed, errorEmbed, infoEmbed, COLORS } = require('../../utils/embeds');
+const { successEmbed, errorEmbed, infoEmbed, modEmbed, COLORS } = require('../../utils/embeds');
 const emojis = require('../../utils/emojis');
 const { getGuildConfig } = require('../../database/utils/GuildConfig');
 
