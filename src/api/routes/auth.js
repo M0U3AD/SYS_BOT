@@ -5,7 +5,7 @@ const DISCORD_API = 'https://discord.com/api';
 const SCOPES = 'identify guilds';
 
 router.get('/login', (req, res) => {
-  const url = `${DISCORD_API}/oauth2/authorize?client_id=${process.env.CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.DASHBOARD_URL + '/callback')}&response_type=code&scope=${SCOPES}`;
+  const url = `${DISCORD_API}/oauth2/authorize?client_id=${process.env.CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.DASHBOARD_URL + '/api/auth/callback')}&response_type=code&scope=${SCOPES}`;
   res.json({ url });
 });
 
@@ -22,7 +22,7 @@ router.get('/callback', async (req, res) => {
         client_secret: process.env.CLIENT_SECRET,
         grant_type: 'authorization_code',
         code,
-        redirect_uri: process.env.DASHBOARD_URL + '/callback',
+        redirect_uri: process.env.DASHBOARD_URL + '/api/auth/callback',
       }),
     });
 
