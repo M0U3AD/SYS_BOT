@@ -3,6 +3,7 @@ const { successEmbed, errorEmbed, confirmEmbed, modEmbed, COLORS } = require('..
 const emojis = require('../../utils/emojis');
 const Log = require('../../database/models/Log');
 const { getGuildConfig } = require('../../database/utils/GuildConfig');
+const { getT } = require('../../i18n');
 
 module.exports = {
   name: 'kick',
@@ -16,45 +17,45 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers),
 
   async execute(message, args) {
+    const t = await getT(message.guild.id);
+
     if (!message.member.permissions.has('KickMembers')) {
-      return message.reply({ embeds: [errorEmbed('Access Denied', 'You need the `Kick Members` permission.')] });
+      return message.reply({ embeds: [errorEmbed(t('MOD_CONFIRM_TITLE', 'Error'), t('MOD_ACCESS_DENIED', '`Kick Members`'))] });
     }
 
     const member = message.mentions.members.first();
     if (!member) {
-      return message.reply({ embeds: [errorEmbed('Invalid Target', 'Please mention a user to kick.\n`!kick <@user> [reason]`')] });
+      return message.reply({ embeds: [errorEmbed(t('ERR_INVALID_USAGE'), '`!kick <@user> [reason]`')] });
     }
 
     if (!member.kickable) {
-      return message.reply({ embeds: [errorEmbed('Cannot Kick', 'I cannot kick this user. Their role may be higher than mine.')] });
+      return message.reply({ embeds: [errorEmbed(t('MOD_KICK_TITLE', 'Error'), t('MOD_KICK_CANNOT'))] });
     }
 
     if (member.id === message.author.id) {
-      return message.reply({ embeds: [errorEmbed('Self-Action', 'You cannot kick yourself.')] });
+      return message.reply({ embeds: [errorEmbed(t('MOD_SELF_ACTION'), t('MOD_SELF_ACTION'))] });
     }
 
     const reason = args.slice(1).join(' ') || 'No reason provided';
 
+    const targetStr = member.user.tag + ' (`' + member.id + '`)';
+
     const confirm = confirmEmbed(
       emojis.kick,
-      'Kick Confirmation',
-      [
-        '**Target:** ' + member.user.tag + ' (`' + member.id + '`)',
-        '**Reason:** ' + reason,
-        '**Moderator:** ' + message.author.tag,
-      ].join('\n'),
+      t('MOD_CONFIRM_TITLE', 'Kick'),
+      t('MOD_KICK_CONFIRM', targetStr, reason, message.author.tag),
       { thumbnail: member.user.displayAvatarURL({ dynamic: true }) }
     );
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('mod_confirm_kick_' + message.author.id)
-        .setLabel('Confirm Kick')
+        .setLabel(t('MOD_CONFIRM_BTN', 'Kick'))
         .setStyle(ButtonStyle.Danger)
         .setEmoji(emojis.kick),
       new ButtonBuilder()
         .setCustomId('mod_cancel_' + message.author.id)
-        .setLabel('Cancel')
+        .setLabel(t('MOD_CANCEL_BTN'))
         .setStyle(ButtonStyle.Secondary)
         .setEmoji(emojis.cross)
     );
@@ -69,7 +70,7 @@ module.exports = {
 
       if (i.customId === 'mod_cancel_' + message.author.id) {
         collector.stop('cancelled');
-        return i.update({ embeds: [errorEmbed('Kick Cancelled', 'Action was cancelled by ' + message.author.tag + '.')], components: [] });
+        return i.update({ embeds: [errorEmbed(t('MOD_CANCELLED'), '')], components: [] });
       }
 
       if (i.customId === 'mod_confirm_kick_' + message.author.id) {
@@ -77,8 +78,8 @@ module.exports = {
         try {
           await member.kick(reason);
 
-          const logEmbed = modEmbed(emojis.kick, 'Member Kicked', [
-            { name: emojis.user + ' Target', value: member.user.tag + ' (`' + member.id + '`)', inline: true },
+          const logEmbed = modEmbed(emojis.kick, t('MOD_KICK_TITLE'), [
+            { name: emojis.user + ' Target', value: targetStr, inline: true },
             { name: emojis.gavel + ' Moderator', value: message.author.tag, inline: true },
             { name: emojis.tag + ' Reason', value: reason, inline: false },
           ], { color: COLORS.error, thumbnail: member.user.displayAvatarURL({ dynamic: true }) });
@@ -92,7 +93,7 @@ module.exports = {
           }
           await Log.addLog(message.guild.id, 'mod', 'kick', message.author.id, member.id, reason);
         } catch (err) {
-          await i.update({ embeds: [errorEmbed('Kick Failed', 'An error occurred: ' + err.message)], components: [] });
+          await i.update({ embeds: [errorEmbed(t('MOD_KICK_TITLE', 'Error'), err.message)], components: [] });
         }
       }
     });
@@ -100,46 +101,46 @@ module.exports = {
     collector.on('end', async (collected, reason) => {
       if (reason === 'confirmed' || reason === 'cancelled') return;
       try {
-        await msg.edit({ embeds: [errorEmbed('Timed Out', 'Confirmation expired. Action was not executed.')], components: [] });
+        await msg.edit({ embeds: [errorEmbed(t('MOD_TIMED_OUT'), '')], components: [] });
       } catch {}
     });
   },
 
   async slashExecute(interaction, client) {
+    const t = await getT(interaction.guild.id);
+
     const user = interaction.options.getUser('user');
     const reason = interaction.options.getString('reason') || 'No reason provided';
     const member = interaction.guild.members.cache.get(user.id);
 
     if (!member) {
-      return interaction.reply({ embeds: [errorEmbed('Not Found', 'User is not in this server.')], ephemeral: true });
+      return interaction.reply({ embeds: [errorEmbed(t('MOD_KICK_TITLE', 'Error'), t('MOD_KICK_NOT_FOUND'))], ephemeral: true });
     }
     if (!member.kickable) {
-      return interaction.reply({ embeds: [errorEmbed('Cannot Kick', 'I cannot kick this user.')], ephemeral: true });
+      return interaction.reply({ embeds: [errorEmbed(t('MOD_KICK_TITLE', 'Error'), t('MOD_KICK_CANNOT'))], ephemeral: true });
     }
     if (member.id === interaction.user.id) {
-      return interaction.reply({ embeds: [errorEmbed('Self-Action', 'You cannot kick yourself.')], ephemeral: true });
+      return interaction.reply({ embeds: [errorEmbed(t('MOD_SELF_ACTION'), t('MOD_SELF_ACTION'))], ephemeral: true });
     }
+
+    const targetStr = user.tag + ' (`' + user.id + '`)';
 
     const confirm = confirmEmbed(
       emojis.kick,
-      'Kick Confirmation',
-      [
-        '**Target:** ' + user.tag + ' (`' + user.id + '`)',
-        '**Reason:** ' + reason,
-        '**Moderator:** ' + interaction.user.tag,
-      ].join('\n'),
+      t('MOD_CONFIRM_TITLE', 'Kick'),
+      t('MOD_KICK_CONFIRM', targetStr, reason, interaction.user.tag),
       { thumbnail: user.displayAvatarURL({ dynamic: true }) }
     );
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('mod_confirm_kick_' + interaction.user.id)
-        .setLabel('Confirm Kick')
+        .setLabel(t('MOD_CONFIRM_BTN', 'Kick'))
         .setStyle(ButtonStyle.Danger)
         .setEmoji(emojis.kick),
       new ButtonBuilder()
         .setCustomId('mod_cancel_' + interaction.user.id)
-        .setLabel('Cancel')
+        .setLabel(t('MOD_CANCEL_BTN'))
         .setStyle(ButtonStyle.Secondary)
         .setEmoji(emojis.cross)
     );
@@ -155,7 +156,7 @@ module.exports = {
 
       if (i.customId === 'mod_cancel_' + interaction.user.id) {
         collector.stop('cancelled');
-        return i.update({ embeds: [errorEmbed('Kick Cancelled', 'Action was cancelled.')], components: [] });
+        return i.update({ embeds: [errorEmbed(t('MOD_CANCELLED'), '')], components: [] });
       }
 
       if (i.customId === 'mod_confirm_kick_' + interaction.user.id) {
@@ -163,8 +164,8 @@ module.exports = {
         try {
           await member.kick(reason);
 
-          const logEmbed = modEmbed(emojis.kick, 'Member Kicked', [
-            { name: emojis.user + ' Target', value: user.tag + ' (`' + user.id + '`)', inline: true },
+          const logEmbed = modEmbed(emojis.kick, t('MOD_KICK_TITLE'), [
+            { name: emojis.user + ' Target', value: targetStr, inline: true },
             { name: emojis.gavel + ' Moderator', value: interaction.user.tag, inline: true },
             { name: emojis.tag + ' Reason', value: reason, inline: false },
           ], { color: COLORS.error, thumbnail: user.displayAvatarURL({ dynamic: true }) });
@@ -178,7 +179,7 @@ module.exports = {
           }
           await Log.addLog(interaction.guild.id, 'mod', 'kick', interaction.user.id, user.id, reason);
         } catch (err) {
-          await i.update({ embeds: [errorEmbed('Kick Failed', err.message)], components: [] });
+          await i.update({ embeds: [errorEmbed(t('MOD_KICK_TITLE', 'Error'), err.message)], components: [] });
         }
       }
     });
@@ -186,7 +187,7 @@ module.exports = {
     collector.on('end', async (collected, reason) => {
       if (reason === 'confirmed' || reason === 'cancelled') return;
       try {
-        await msg.edit({ embeds: [errorEmbed('Timed Out', 'Confirmation expired. Action was not executed.')], components: [] });
+        await msg.edit({ embeds: [errorEmbed(t('MOD_TIMED_OUT'), '')], components: [] });
       } catch {}
     });
   },

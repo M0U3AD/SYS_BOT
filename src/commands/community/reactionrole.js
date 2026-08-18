@@ -3,17 +3,21 @@ const { successEmbed, errorEmbed, infoEmbed, modEmbed, dashboardEmbed, COLORS } 
 const emojis = require('../../utils/emojis');
 const { getGuildConfig, updateGuildConfig } = require('../../database/utils/GuildConfig');
 
-const setups = new Map();
+var setups = new Map();
+
+function getSetupData(userId) {
+  return setups.get(userId) || null;
+}
 
 function buildPanelEmbed(guild, data) {
-  const pairs = data.pairs || [];
-  const channel = data.channelId ? '<#' + data.channelId + '>' : 'Not set';
-  const title = data.title || 'Select Your Roles';
+  var pairs = data.pairs || [];
+  var channel = data.channelId ? '<#' + data.channelId + '>' : 'Not set';
+  var title = data.title || 'Select Your Roles';
 
-  let pairsList = 'No role pairs added yet.';
+  var pairsList = 'No role pairs added yet.';
   if (pairs.length > 0) {
     pairsList = pairs.map(function(p, i) {
-      return '**' + (i + 1) + '.** ' + p.emoji + ' \u2192 ' + p.role;
+      return '**' + (i + 1) + '.** ' + p.emoji + ' \u2192 <@&' + p.roleId + '>';
     }).join('\n');
   }
 
@@ -24,6 +28,7 @@ function buildPanelEmbed(guild, data) {
       { name: emojis.tag + ' Title', value: title, inline: true },
       { name: emojis.channel + ' Channel', value: channel, inline: true },
       { name: emojis.chart + ' Pairs', value: '' + pairs.length, inline: true },
+      { name: '\u200b', value: '\u200b', inline: true },
       { name: emojis.list + ' Role Pairs', value: pairsList, inline: false },
     ],
     { color: COLORS.blurple }
@@ -31,7 +36,7 @@ function buildPanelEmbed(guild, data) {
 }
 
 function buildPanelButtons(hasPairs, hasChannel) {
-  const row1 = new ActionRowBuilder().addComponents(
+  var row1 = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('rr_add_pair')
       .setLabel('Add Role Pair')
@@ -50,13 +55,7 @@ function buildPanelButtons(hasPairs, hasChannel) {
       .setEmoji(emojis.channel)
   );
 
-  const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('rr_preview')
-      .setLabel('Preview')
-      .setStyle(ButtonStyle.Secondary)
-      .setEmoji(emojis.preview)
-      .setDisabled(!hasPairs),
+  var row2 = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('rr_send')
       .setLabel('Send Reaction Role')
@@ -74,9 +73,9 @@ function buildPanelButtons(hasPairs, hasChannel) {
 }
 
 function buildPreviewEmbed(data) {
-  const pairs = data.pairs || [];
-  const description = pairs.map(function(p) {
-    return p.emoji + ' \u2192 ' + p.role;
+  var pairs = data.pairs || [];
+  var description = pairs.map(function(p) {
+    return p.emoji + ' \u2192 <@&' + p.roleId + '>';
   }).join('\n');
 
   return new EmbedBuilder()
@@ -88,11 +87,11 @@ function buildPreviewEmbed(data) {
 }
 
 function buildPreviewButtons(data) {
-  const pairs = data.pairs || [];
+  var pairs = data.pairs || [];
   if (pairs.length === 0) return [];
 
-  const rows = [];
-  let currentRow = new ActionRowBuilder();
+  var rows = [];
+  var currentRow = new ActionRowBuilder();
 
   pairs.forEach(function(p, i) {
     if (i > 0 && i % 5 === 0) {
@@ -103,7 +102,7 @@ function buildPreviewButtons(data) {
     currentRow.addComponents(
       new ButtonBuilder()
         .setCustomId('rr_toggle_' + i)
-        .setLabel(p.roleName || p.role)
+        .setLabel(p.roleName || 'Role ' + (i + 1))
         .setStyle(ButtonStyle.Secondary)
         .setEmoji(p.emoji)
     );
@@ -114,52 +113,50 @@ function buildPreviewButtons(data) {
 }
 
 async function startSetup(source, client) {
-  const guild = source.guild;
-  const userId = source.member ? source.member.id : source.user.id;
-  const config = await getGuildConfig(guild.id);
+  var guild = source.guild;
+  var userId = source.member ? source.member.id : source.user.id;
 
-  const data = { pairs: [], channelId: null, title: 'Select Your Roles', guildId: guild.id };
+  var data = { pairs: [], channelId: null, title: 'Select Your Roles', guildId: guild.id };
   setups.set(userId, data);
 
-  const embed = buildPanelEmbed(guild, data);
-  const buttons = buildPanelButtons(false, false);
+  var embed = buildPanelEmbed(guild, data);
+  var buttons = buildPanelButtons(false, false);
 
-  let response;
   if (source.replied || source.deferred) {
-    response = await source.editReply({ embeds: [embed], components: buttons });
+    var msg = await source.editReply({ embeds: [embed], components: buttons });
   } else {
-    response = await source.reply({ embeds: [embed], components: buttons });
+    var msg = await source.reply({ embeds: [embed], components: buttons });
   }
 
-  const collector = response.createMessageComponentCollector({ time: 300000 });
+  var collector = msg.createMessageComponentCollector({ time: 300000 });
 
   collector.on('collect', async function(i) {
     if (i.user.id !== userId) {
       return i.reply({ content: 'This setup is not for you.', ephemeral: true });
     }
 
-    const currentData = setups.get(userId);
+    var currentData = setups.get(userId);
     if (!currentData) {
       collector.stop('expired');
-      return i.reply({ content: 'Setup has expired.', ephemeral: true });
+      return i.reply({ content: 'Setup expired.', ephemeral: true });
     }
 
     if (i.customId === 'rr_add_pair') {
-      const modal = new ModalBuilder()
+      var modal = new ModalBuilder()
         .setCustomId('rr_modal_add')
         .setTitle('Add Role Pair');
 
-      const roleInput = new TextInputBuilder()
+      var roleInput = new TextInputBuilder()
         .setCustomId('rr_role_input')
         .setLabel('Role (mention or ID)')
-        .setPlaceholder('Example: @Moderator or 1234567890123456789')
+        .setPlaceholder('@Moderator or 1234567890123456789')
         .setStyle(TextInputStyle.Short)
         .setRequired(true);
 
-      const emojiInput = new TextInputBuilder()
+      var emojiInput = new TextInputBuilder()
         .setCustomId('rr_emoji_input')
-        .setLabel('Emoji (unicode or custom emoji ID)')
-        .setPlaceholder('Example: 🔴 or :moderator: or <a:star:123>')
+        .setLabel('Emoji (unicode or custom)')
+        .setPlaceholder('🔴 or :moderator: or <a:star:123>')
         .setStyle(TextInputStyle.Short)
         .setRequired(true);
 
@@ -171,26 +168,23 @@ async function startSetup(source, client) {
       await i.showModal(modal);
 
       try {
-        const modalInteraction = await i.awaitModalSubmit({ time: 60000, filter: function(mi) { return mi.user.id === userId; } });
+        var modalInteraction = await i.awaitModalSubmit({ time: 60000, filter: function(mi) { return mi.user.id === userId; } });
 
-        const roleText = modalInteraction.fields.getTextInputValue('rr_role_input').trim();
-        const emojiText = modalInteraction.fields.getTextInputValue('rr_emoji_input').trim();
+        var roleText = modalInteraction.fields.getTextInputValue('rr_role_input').trim();
+        var emojiText = modalInteraction.fields.getTextInputValue('rr_emoji_input').trim();
 
-        let roleId = null;
-        let roleName = roleText;
-        const roleMentionMatch = roleText.match(/^<@&(\d+)>$/);
-        const directIdMatch = roleText.match(/^\d+$/);
-        const mentionMatch = roleText.match(/^@(.+)$/);
+        var roleId = null;
+        var roleName = roleText;
+        var roleMentionMatch = roleText.match(/^<@&(\d+)>$/);
+        var directIdMatch = roleText.match(/^\d+$/);
 
         if (roleMentionMatch) {
           roleId = roleMentionMatch[1];
         } else if (directIdMatch) {
           roleId = directIdMatch[0];
-        } else if (mentionMatch) {
-          const found = guild.roles.cache.find(function(r) { return r.name.toLowerCase() === mentionMatch[1].toLowerCase(); });
-          if (found) { roleId = found.id; roleName = found.name; }
         } else {
-          const found = guild.roles.cache.find(function(r) { return r.name.toLowerCase() === roleText.toLowerCase(); });
+          var cleanText = roleText.replace(/^@/, '');
+          var found = guild.roles.cache.find(function(r) { return r.name.toLowerCase() === cleanText.toLowerCase(); });
           if (found) { roleId = found.id; roleName = found.name; }
         }
 
@@ -198,29 +192,24 @@ async function startSetup(source, client) {
           return modalInteraction.reply({ embeds: [errorEmbed('Role Not Found', 'Could not find a role matching **' + roleText + '**.')], ephemeral: true });
         }
 
-        const role = guild.roles.cache.get(roleId);
-        if (role && role.position >= guild.members.me.roles.highest.position) {
-          return modalInteraction.reply({ embeds: [errorEmbed('Role Too High', 'I cannot assign this role. It is equal to or higher than my highest role.')], ephemeral: true });
+        var role = guild.roles.cache.get(roleId);
+        if (role && guild.members.me && role.position >= guild.members.me.roles.highest.position) {
+          return modalInteraction.reply({ embeds: [errorEmbed('Role Too High', 'I cannot assign this role.')], ephemeral: true });
         }
 
-        const emojiRegex = /^[\p{Emoji_Presentation}\p{Extended_Pictographic}\u200d\uFE0F]{1,10}$|^<a?:\w+:\d+>$/u;
-        if (!emojiRegex.test(emojiText)) {
-          return modalInteraction.reply({ embeds: [errorEmbed('Invalid Emoji', 'Please provide a valid Unicode emoji or custom emoji (e.g. :emoji_name: or <a:name:id>).')], ephemeral: true });
-        }
-
-        const duplicate = currentData.pairs.find(function(p) { return p.emoji === emojiText || p.roleId === roleId; });
+        var duplicate = currentData.pairs.find(function(p) { return p.emoji === emojiText || p.roleId === roleId; });
         if (duplicate) {
           return modalInteraction.reply({ embeds: [errorEmbed('Duplicate', 'This emoji or role is already in the list.')], ephemeral: true });
         }
 
-        currentData.pairs.push({ roleId: roleId, roleName: roleName, role: '<@&' + roleId + '>', emoji: emojiText });
+        currentData.pairs.push({ roleId: roleId, roleName: roleName, emoji: emojiText });
         setups.set(userId, currentData);
 
-        const updatedEmbed = buildPanelEmbed(guild, currentData);
-        const updatedButtons = buildPanelButtons(currentData.pairs.length > 0, !!currentData.channelId);
+        var updatedEmbed = buildPanelEmbed(guild, currentData);
+        var updatedButtons = buildPanelButtons(currentData.pairs.length > 0, !!currentData.channelId);
         await modalInteraction.update({ embeds: [updatedEmbed], components: updatedButtons });
       } catch (err) {
-        console.error('Modal error:', err);
+        console.error('Modal error:', err.message);
       }
       return;
     }
@@ -230,7 +219,7 @@ async function startSetup(source, client) {
         return i.reply({ embeds: [errorEmbed('Empty', 'No pairs to remove.')], ephemeral: true });
       }
 
-      const selectMenu = new StringSelectMenuBuilder()
+      var selectMenu = new StringSelectMenuBuilder()
         .setCustomId('rr_select_remove')
         .setPlaceholder('Select a pair to remove')
         .setMinValues(1)
@@ -238,74 +227,46 @@ async function startSetup(source, client) {
 
       currentData.pairs.forEach(function(p, idx) {
         selectMenu.addOptions({
-          label: p.roleName || p.role,
+          label: p.roleName || ('Role ' + (idx + 1)),
           description: p.emoji + ' \u2192 Role',
           value: '' + idx,
-          emoji: undefined
         });
       });
 
-      const selectRow = new ActionRowBuilder().addComponents(selectMenu);
+      var selectRow = new ActionRowBuilder().addComponents(selectMenu);
       return i.reply({ content: '**Select pairs to remove:**', components: [selectRow], ephemeral: true });
     }
 
-    if (i.customId === 'rr_select_remove') {
-      const indices = i.values.map(Number).sort(function(a, b) { return b - a; });
-      indices.forEach(function(idx) { currentData.pairs.splice(idx, 1); });
-      setups.set(userId, currentData);
-
-      const updatedEmbed = buildPanelEmbed(guild, currentData);
-      const updatedButtons = buildPanelButtons(currentData.pairs.length > 0, !!currentData.channelId);
-      await i.update({ embeds: [updatedEmbed], components: updatedButtons });
-      return;
-    }
-
     if (i.customId === 'rr_set_channel') {
-      const channelSelect = new ChannelSelectMenuBuilder()
+      var channelSelect = new ChannelSelectMenuBuilder()
         .setCustomId('rr_channel_select')
         .setPlaceholder('Select a channel for reaction roles')
         .setChannelTypes(ChannelType.GuildText);
 
-      const channelRow = new ActionRowBuilder().addComponents(channelSelect);
-      return i.reply({ content: '**Select the channel to send the reaction role message in:**', components: [channelRow], ephemeral: true });
-    }
-
-    if (i.customId === 'rr_channel_select') {
-      currentData.channelId = i.values[0];
-      setups.set(userId, currentData);
-
-      const updatedEmbed = buildPanelEmbed(guild, currentData);
-      const updatedButtons = buildPanelButtons(currentData.pairs.length > 0, !!currentData.channelId);
-      await i.update({ embeds: [updatedEmbed], components: updatedButtons });
-      return;
-    }
-
-    if (i.customId === 'rr_preview') {
-      const previewEmbed = buildPreviewEmbed(currentData);
-      const previewButtons = buildPreviewButtons(currentData);
-      return i.reply({ embeds: [previewEmbed], components: previewButtons, ephemeral: true });
+      var channelRow = new ActionRowBuilder().addComponents(channelSelect);
+      return i.reply({ content: '**Select the channel:**', components: [channelRow], ephemeral: true });
     }
 
     if (i.customId === 'rr_send') {
       if (currentData.pairs.length === 0) {
-        return i.reply({ embeds: [errorEmbed('No Pairs', 'Add at least one role pair before sending.')], ephemeral: true });
+        return i.reply({ embeds: [errorEmbed('No Pairs', 'Add at least one role pair.')], ephemeral: true });
       }
       if (!currentData.channelId) {
-        return i.reply({ embeds: [errorEmbed('No Channel', 'Set a channel before sending.')], ephemeral: true });
+        return i.reply({ embeds: [errorEmbed('No Channel', 'Set a channel first.')], ephemeral: true });
       }
 
-      const targetChannel = guild.channels.cache.get(currentData.channelId);
+      var targetChannel = guild.channels.cache.get(currentData.channelId);
       if (!targetChannel) {
-        return i.reply({ embeds: [errorEmbed('Channel Not Found', 'The selected channel no longer exists.')], ephemeral: true });
+        return i.reply({ embeds: [errorEmbed('Channel Not Found', 'Channel no longer exists.')], ephemeral: true });
       }
 
-      const rrEmbed = buildPreviewEmbed(currentData);
-      const rrButtons = buildPreviewButtons(currentData);
+      var rrEmbed = buildPreviewEmbed(currentData);
+      var rrButtons = buildPreviewButtons(currentData);
 
       try {
-        const sentMsg = await targetChannel.send({ embeds: [rrEmbed], components: rrButtons });
+        var sentMsg = await targetChannel.send({ embeds: [rrEmbed], components: rrButtons });
 
-        const config = await getGuildConfig(guild.id);
+        var config = await getGuildConfig(guild.id);
         if (!config.reactionRoles) config.reactionRoles = [];
         config.reactionRoles.push({
           messageId: sentMsg.id,
@@ -325,14 +286,14 @@ async function startSetup(source, client) {
           components: []
         });
       } catch (err) {
-        return i.reply({ embeds: [errorEmbed('Send Failed', 'Could not send the message: ' + err.message)], ephemeral: true });
+        return i.reply({ embeds: [errorEmbed('Send Failed', err.message)], ephemeral: true });
       }
     }
 
     if (i.customId === 'rr_cancel') {
       setups.delete(userId);
       collector.stop('cancelled');
-      return i.update({ embeds: [errorEmbed('Setup Cancelled', 'Reaction role setup has been cancelled.')], components: [] });
+      return i.update({ embeds: [errorEmbed('Setup Cancelled', 'Reaction role setup cancelled.')], components: [] });
     }
   });
 
@@ -340,8 +301,8 @@ async function startSetup(source, client) {
     if (reason === 'sent' || reason === 'cancelled') return;
     setups.delete(userId);
     try {
-      response.edit({ embeds: [errorEmbed('Timed Out', 'Setup expired after 5 minutes. Run the command again.')], components: [] }).catch(function() {});
-    } catch {}
+      msg.edit({ embeds: [errorEmbed('Timed Out', 'Setup expired after 5 minutes.')], components: [] }).catch(function() {});
+    } catch (e) {}
   });
 }
 
@@ -370,19 +331,19 @@ module.exports = {
     }
 
     if (args[0] === 'list') {
-      const config = await getGuildConfig(message.guild.id);
-      const rrs = config.reactionRoles || [];
+      var config = await getGuildConfig(message.guild.id);
+      var rrs = config.reactionRoles || [];
       if (rrs.length === 0) {
         return message.reply({ embeds: [infoEmbed('Reaction Roles', emojis.list + ' No reaction role messages configured.\nUse `!reactionrole setup` to create one.')] });
       }
 
-      const list = rrs.map(function(rr, i) {
-        const channel = rr.channelId ? '<#' + rr.channelId + '>' : 'Unknown';
-        const roleCount = rr.roles ? rr.roles.length : 0;
+      var list = rrs.map(function(rr, i) {
+        var channel = rr.channelId ? '<#' + rr.channelId + '>' : 'Unknown';
+        var roleCount = rr.roles ? rr.roles.length : 0;
         return '**' + (i + 1) + '.** ' + (rr.title || 'Untitled') + ' \u2022 ' + channel + ' \u2022 ' + roleCount + ' role(s) \u2022 `' + rr.messageId + '`';
       }).join('\n');
 
-      const embed = modEmbed(emojis.list, 'Reaction Roles', [
+      var embed = modEmbed(emojis.list, 'Reaction Roles', [
         { name: emojis.chart + ' Total', value: '' + rrs.length, inline: true },
         { name: '\u200b', value: list, inline: false },
       ], { color: COLORS.blurple });
@@ -393,23 +354,23 @@ module.exports = {
     if (args[0] === 'delete') {
       if (!args[1]) return message.reply({ embeds: [errorEmbed('Invalid Usage', '`!reactionrole delete <messageId>`')] });
 
-      const config = await getGuildConfig(message.guild.id);
-      const found = (config.reactionRoles || []).find(function(rr) { return rr.messageId === args[1]; });
+      var config = await getGuildConfig(message.guild.id);
+      var found = (config.reactionRoles || []).find(function(rr) { return rr.messageId === args[1]; });
       if (!found) {
         return message.reply({ embeds: [errorEmbed('Not Found', 'No reaction role found with that message ID.')] });
       }
 
       try {
-        const ch = message.guild.channels.cache.get(found.channelId);
+        var ch = message.guild.channels.cache.get(found.channelId);
         if (ch) {
-          const msg = await ch.messages.fetch(args[1]);
+          var msg = await ch.messages.fetch(args[1]);
           if (msg) await msg.delete().catch(function() {});
         }
-      } catch {}
+      } catch (e) {}
 
-      const filtered = (config.reactionRoles || []).filter(function(rr) { return rr.messageId !== args[1]; });
+      var filtered = (config.reactionRoles || []).filter(function(rr) { return rr.messageId !== args[1]; });
       await updateGuildConfig(message.guild.id, { reactionRoles: filtered });
-      return message.reply({ embeds: [successEmbed('Deleted', emojis.trash + ' Reaction role message has been deleted.')] });
+      return message.reply({ embeds: [successEmbed('Deleted', emojis.trash + ' Reaction role message deleted.')] });
     }
 
     if (args[0] === 'setup' || !args[0]) {
@@ -420,7 +381,7 @@ module.exports = {
   },
 
   async slashExecute(interaction, client) {
-    const sub = interaction.options.getSubcommand();
+    var sub = interaction.options.getSubcommand();
 
     if (sub === 'setup') {
       await interaction.deferReply({ ephemeral: true });
@@ -428,19 +389,19 @@ module.exports = {
     }
 
     if (sub === 'list') {
-      const config = await getGuildConfig(interaction.guild.id);
-      const rrs = config.reactionRoles || [];
+      var config = await getGuildConfig(interaction.guild.id);
+      var rrs = config.reactionRoles || [];
       if (rrs.length === 0) {
         return interaction.reply({ embeds: [infoEmbed('Reaction Roles', emojis.list + ' No reaction role messages configured.\nUse `/reactionrole setup` to create one.')], ephemeral: true });
       }
 
-      const list = rrs.map(function(rr, i) {
-        const channel = rr.channelId ? '<#' + rr.channelId + '>' : 'Unknown';
-        const roleCount = rr.roles ? rr.roles.length : 0;
+      var list = rrs.map(function(rr, i) {
+        var channel = rr.channelId ? '<#' + rr.channelId + '>' : 'Unknown';
+        var roleCount = rr.roles ? rr.roles.length : 0;
         return '**' + (i + 1) + '.** ' + (rr.title || 'Untitled') + ' \u2022 ' + channel + ' \u2022 ' + roleCount + ' role(s) \u2022 `' + rr.messageId + '`';
       }).join('\n');
 
-      const embed = modEmbed(emojis.list, 'Reaction Roles', [
+      var embed = modEmbed(emojis.list, 'Reaction Roles', [
         { name: emojis.chart + ' Total', value: '' + rrs.length, inline: true },
         { name: '\u200b', value: list, inline: false },
       ], { color: COLORS.blurple });
@@ -449,24 +410,24 @@ module.exports = {
     }
 
     if (sub === 'delete') {
-      const msgId = interaction.options.getString('message_id');
-      const config = await getGuildConfig(interaction.guild.id);
-      const found = (config.reactionRoles || []).find(function(rr) { return rr.messageId === msgId; });
+      var msgId = interaction.options.getString('message_id');
+      var config = await getGuildConfig(interaction.guild.id);
+      var found = (config.reactionRoles || []).find(function(rr) { return rr.messageId === msgId; });
       if (!found) {
         return interaction.reply({ embeds: [errorEmbed('Not Found', 'No reaction role found with that message ID.')], ephemeral: true });
       }
 
       try {
-        const ch = interaction.guild.channels.cache.get(found.channelId);
+        var ch = interaction.guild.channels.cache.get(found.channelId);
         if (ch) {
-          const msg = await ch.messages.fetch(msgId);
+          var msg = await ch.messages.fetch(msgId);
           if (msg) await msg.delete().catch(function() {});
         }
-      } catch {}
+      } catch (e) {}
 
-      const filtered = (config.reactionRoles || []).filter(function(rr) { return rr.messageId !== msgId; });
+      var filtered = (config.reactionRoles || []).filter(function(rr) { return rr.messageId !== msgId; });
       await updateGuildConfig(interaction.guild.id, { reactionRoles: filtered });
-      return interaction.reply({ embeds: [successEmbed('Deleted', emojis.trash + ' Reaction role message has been deleted.')] });
+      return interaction.reply({ embeds: [successEmbed('Deleted', emojis.trash + ' Reaction role message deleted.')] });
     }
   },
 };

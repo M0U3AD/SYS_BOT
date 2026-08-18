@@ -3,6 +3,7 @@ const { successEmbed, errorEmbed, confirmEmbed, modEmbed, COLORS } = require('..
 const emojis = require('../../utils/emojis');
 const Log = require('../../database/models/Log');
 const { getGuildConfig } = require('../../database/utils/GuildConfig');
+const { getT } = require('../../i18n');
 
 module.exports = {
   name: 'mute',
@@ -17,22 +18,24 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
 
   async execute(message, args) {
+    const t = await getT(message.guild.id);
+
     if (!message.member.permissions.has('ModerateMembers')) {
-      return message.reply({ embeds: [errorEmbed('Access Denied', 'You need the `Moderate Members` permission.')] });
+      return message.reply({ embeds: [errorEmbed(t('MOD_CONFIRM_TITLE', 'Error'), t('MOD_ACCESS_DENIED', '`Moderate Members`'))] });
     }
 
     const member = message.mentions.members.first();
     if (!member) {
-      return message.reply({ embeds: [errorEmbed('Invalid Target', '`!mute <@user> <minutes> [reason]`')] });
+      return message.reply({ embeds: [errorEmbed(t('ERR_INVALID_USAGE'), '`!mute <@user> <minutes> [reason]`')] });
     }
 
     if (member.id === message.author.id) {
-      return message.reply({ embeds: [errorEmbed('Self-Action', 'You cannot mute yourself.')] });
+      return message.reply({ embeds: [errorEmbed(t('MOD_SELF_ACTION'), t('MOD_SELF_ACTION'))] });
     }
 
     const minutes = parseInt(args[1]);
     if (isNaN(minutes) || minutes < 1 || minutes > 40320) {
-      return message.reply({ embeds: [errorEmbed('Invalid Duration', 'Duration must be between **1** and **40320** minutes (28 days).')] });
+      return message.reply({ embeds: [errorEmbed(t('MOD_MUTE_INVALID_DURATION'), '')] });
     }
 
     const reason = args.slice(2).join(' ') || 'No reason provided';
@@ -41,27 +44,24 @@ module.exports = {
                         minutes >= 60 ? Math.floor(minutes / 60) + 'h ' + (minutes % 60) + 'm' :
                         minutes + 'm';
 
+    const targetStr = member.user.tag + ' (`' + member.id + '`)';
+
     const confirm = confirmEmbed(
       emojis.mute,
-      'Mute Confirmation',
-      [
-        '**Target:** ' + member.user.tag + ' (`' + member.id + '`)',
-        '**Duration:** ' + durationStr + ' (' + minutes + ' minutes)',
-        '**Reason:** ' + reason,
-        '**Moderator:** ' + message.author.tag,
-      ].join('\n'),
+      t('MOD_CONFIRM_TITLE', 'Mute'),
+      t('MOD_MUTE_CONFIRM', targetStr, durationStr, reason, message.author.tag),
       { thumbnail: member.user.displayAvatarURL({ dynamic: true }) }
     );
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('mod_confirm_mute_' + message.author.id)
-        .setLabel('Confirm Mute')
+        .setLabel(t('MOD_CONFIRM_BTN', 'Mute'))
         .setStyle(ButtonStyle.Danger)
         .setEmoji(emojis.mute),
       new ButtonBuilder()
         .setCustomId('mod_cancel_' + message.author.id)
-        .setLabel('Cancel')
+        .setLabel(t('MOD_CANCEL_BTN'))
         .setStyle(ButtonStyle.Secondary)
         .setEmoji(emojis.cross)
     );
@@ -76,7 +76,7 @@ module.exports = {
 
       if (i.customId === 'mod_cancel_' + message.author.id) {
         collector.stop('cancelled');
-        return i.update({ embeds: [errorEmbed('Mute Cancelled', 'Action was cancelled by ' + message.author.tag + '.')], components: [] });
+        return i.update({ embeds: [errorEmbed(t('MOD_CANCELLED'), '')], components: [] });
       }
 
       if (i.customId === 'mod_confirm_mute_' + message.author.id) {
@@ -84,8 +84,8 @@ module.exports = {
         try {
           await member.timeout(minutes * 60 * 1000, reason);
 
-          const logEmbed = modEmbed(emojis.mute, 'Member Muted', [
-            { name: emojis.user + ' Target', value: member.user.tag + ' (`' + member.id + '`)', inline: true },
+          const logEmbed = modEmbed(emojis.mute, t('MOD_MUTE_TITLE'), [
+            { name: emojis.user + ' Target', value: targetStr, inline: true },
             { name: emojis.gavel + ' Moderator', value: message.author.tag, inline: true },
             { name: emojis.dots + ' Duration', value: durationStr, inline: true },
             { name: emojis.tag + ' Reason', value: reason, inline: false },
@@ -100,7 +100,7 @@ module.exports = {
           }
           await Log.addLog(message.guild.id, 'mod', 'mute', message.author.id, member.id, reason + ' (' + durationStr + ')');
         } catch (err) {
-          await i.update({ embeds: [errorEmbed('Mute Failed', 'An error occurred: ' + err.message)], components: [] });
+          await i.update({ embeds: [errorEmbed(t('MOD_MUTE_TITLE', 'Error'), err.message)], components: [] });
         }
       }
     });
@@ -108,52 +108,55 @@ module.exports = {
     collector.on('end', async (collected, reason) => {
       if (reason === 'confirmed' || reason === 'cancelled') return;
       try {
-        await msg.edit({ embeds: [errorEmbed('Timed Out', 'Confirmation expired. Action was not executed.')], components: [] });
+        await msg.edit({ embeds: [errorEmbed(t('MOD_TIMED_OUT'), '')], components: [] });
       } catch {}
     });
   },
 
   async slashExecute(interaction, client) {
+    const t = await getT(interaction.guild.id);
+
     const user = interaction.options.getUser('user');
     const minutes = interaction.options.getInteger('minutes');
     const reason = interaction.options.getString('reason') || 'No reason provided';
     const member = interaction.guild.members.cache.get(user.id);
 
     if (!member) {
-      return interaction.reply({ embeds: [errorEmbed('Not Found', 'User is not in this server.')], ephemeral: true });
+      return interaction.reply({ embeds: [errorEmbed(t('MOD_MUTE_TITLE', 'Error'), t('MOD_MUTE_NOT_FOUND'))], ephemeral: true });
     }
     if (!member.moderatable) {
-      return interaction.reply({ embeds: [errorEmbed('Cannot Mute', 'I cannot mute this user.')], ephemeral: true });
+      return interaction.reply({ embeds: [errorEmbed(t('MOD_MUTE_TITLE', 'Error'), t('MOD_MUTE_CANNOT'))], ephemeral: true });
     }
     if (member.id === interaction.user.id) {
-      return interaction.reply({ embeds: [errorEmbed('Self-Action', 'You cannot mute yourself.')], ephemeral: true });
+      return interaction.reply({ embeds: [errorEmbed(t('MOD_SELF_ACTION'), t('MOD_SELF_ACTION'))], ephemeral: true });
+    }
+
+    if (minutes < 1 || minutes > 40320) {
+      return interaction.reply({ embeds: [errorEmbed(t('MOD_MUTE_INVALID_DURATION'), '')], ephemeral: true });
     }
 
     const durationStr = minutes >= 1440 ? Math.floor(minutes / 1440) + 'd ' + Math.floor((minutes % 1440) / 60) + 'h' :
                         minutes >= 60 ? Math.floor(minutes / 60) + 'h ' + (minutes % 60) + 'm' :
                         minutes + 'm';
 
+    const targetStr = user.tag + ' (`' + user.id + '`)';
+
     const confirm = confirmEmbed(
       emojis.mute,
-      'Mute Confirmation',
-      [
-        '**Target:** ' + user.tag + ' (`' + user.id + '`)',
-        '**Duration:** ' + durationStr + ' (' + minutes + ' minutes)',
-        '**Reason:** ' + reason,
-        '**Moderator:** ' + interaction.user.tag,
-      ].join('\n'),
+      t('MOD_CONFIRM_TITLE', 'Mute'),
+      t('MOD_MUTE_CONFIRM', targetStr, durationStr, reason, interaction.user.tag),
       { thumbnail: user.displayAvatarURL({ dynamic: true }) }
     );
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('mod_confirm_mute_' + interaction.user.id)
-        .setLabel('Confirm Mute')
+        .setLabel(t('MOD_CONFIRM_BTN', 'Mute'))
         .setStyle(ButtonStyle.Danger)
         .setEmoji(emojis.mute),
       new ButtonBuilder()
         .setCustomId('mod_cancel_' + interaction.user.id)
-        .setLabel('Cancel')
+        .setLabel(t('MOD_CANCEL_BTN'))
         .setStyle(ButtonStyle.Secondary)
         .setEmoji(emojis.cross)
     );
@@ -169,7 +172,7 @@ module.exports = {
 
       if (i.customId === 'mod_cancel_' + interaction.user.id) {
         collector.stop('cancelled');
-        return i.update({ embeds: [errorEmbed('Mute Cancelled', 'Action was cancelled.')], components: [] });
+        return i.update({ embeds: [errorEmbed(t('MOD_CANCELLED'), '')], components: [] });
       }
 
       if (i.customId === 'mod_confirm_mute_' + interaction.user.id) {
@@ -177,8 +180,8 @@ module.exports = {
         try {
           await member.timeout(minutes * 60 * 1000, reason);
 
-          const logEmbed = modEmbed(emojis.mute, 'Member Muted', [
-            { name: emojis.user + ' Target', value: user.tag + ' (`' + user.id + '`)', inline: true },
+          const logEmbed = modEmbed(emojis.mute, t('MOD_MUTE_TITLE'), [
+            { name: emojis.user + ' Target', value: targetStr, inline: true },
             { name: emojis.gavel + ' Moderator', value: interaction.user.tag, inline: true },
             { name: emojis.dots + ' Duration', value: durationStr, inline: true },
             { name: emojis.tag + ' Reason', value: reason, inline: false },
@@ -193,7 +196,7 @@ module.exports = {
           }
           await Log.addLog(interaction.guild.id, 'mod', 'mute', interaction.user.id, user.id, reason + ' (' + durationStr + ')');
         } catch (err) {
-          await i.update({ embeds: [errorEmbed('Mute Failed', err.message)], components: [] });
+          await i.update({ embeds: [errorEmbed(t('MOD_MUTE_TITLE', 'Error'), err.message)], components: [] });
         }
       }
     });
@@ -201,7 +204,7 @@ module.exports = {
     collector.on('end', async (collected, reason) => {
       if (reason === 'confirmed' || reason === 'cancelled') return;
       try {
-        await msg.edit({ embeds: [errorEmbed('Timed Out', 'Confirmation expired. Action was not executed.')], components: [] });
+        await msg.edit({ embeds: [errorEmbed(t('MOD_TIMED_OUT'), '')], components: [] });
       } catch {}
     });
   },

@@ -2,6 +2,7 @@ const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilde
 const { successEmbed, errorEmbed, modEmbed, COLORS } = require('../../utils/embeds');
 const emojis = require('../../utils/emojis');
 const Log = require('../../database/models/Log');
+const { getT } = require('../../i18n');
 
 module.exports = {
   name: 'unmute',
@@ -14,38 +15,39 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
 
   async execute(message, args) {
+    const t = await getT(message.guild.id);
+
     if (!message.member.permissions.has('ModerateMembers')) {
-      return message.reply({ embeds: [errorEmbed('Access Denied', 'You need the `Moderate Members` permission.')] });
+      return message.reply({ embeds: [errorEmbed(t('MOD_CONFIRM_TITLE', 'Error'), t('MOD_ACCESS_DENIED', '`Moderate Members`'))] });
     }
 
     const member = message.mentions.members.first();
     if (!member) {
-      return message.reply({ embeds: [errorEmbed('Invalid Target', '`!unmute <@user>`')] });
+      return message.reply({ embeds: [errorEmbed(t('ERR_INVALID_USAGE'), '`!unmute <@user>`')] });
     }
 
     if (!member.isCommunicationDisabled()) {
-      return message.reply({ embeds: [errorEmbed('Not Muted', 'This user is not currently muted.')] });
+      return message.reply({ embeds: [errorEmbed(t('MOD_UNMUTE_NOT_MUTED'), '')] });
     }
+
+    const targetStr = member.user.tag + ' (`' + member.id + '`)';
 
     const confirm = confirmEmbed(
       emojis.unmute,
-      'Unmute Confirmation',
-      [
-        '**Target:** ' + member.user.tag + ' (`' + member.id + '`)',
-        '**Moderator:** ' + message.author.tag,
-      ].join('\n'),
+      t('MOD_CONFIRM_TITLE', 'Unmute'),
+      t('MOD_UNMUTE_CONFIRM', targetStr, message.author.tag),
       { thumbnail: member.user.displayAvatarURL({ dynamic: true }) }
     );
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('mod_confirm_unmute_' + message.author.id)
-        .setLabel('Confirm Unmute')
+        .setLabel(t('MOD_CONFIRM_BTN', 'Unmute'))
         .setStyle(ButtonStyle.Success)
         .setEmoji(emojis.unmute),
       new ButtonBuilder()
         .setCustomId('mod_cancel_' + message.author.id)
-        .setLabel('Cancel')
+        .setLabel(t('MOD_CANCEL_BTN'))
         .setStyle(ButtonStyle.Secondary)
         .setEmoji(emojis.cross)
     );
@@ -60,7 +62,7 @@ module.exports = {
 
       if (i.customId === 'mod_cancel_' + message.author.id) {
         collector.stop('cancelled');
-        return i.update({ embeds: [errorEmbed('Unmute Cancelled', 'Action was cancelled by ' + message.author.tag + '.')], components: [] });
+        return i.update({ embeds: [errorEmbed(t('MOD_CANCELLED'), '')], components: [] });
       }
 
       if (i.customId === 'mod_confirm_unmute_' + message.author.id) {
@@ -68,15 +70,15 @@ module.exports = {
         try {
           await member.timeout(null);
 
-          const logEmbed = modEmbed(emojis.unmute, 'Member Unmuted', [
-            { name: emojis.user + ' Target', value: member.user.tag + ' (`' + member.id + '`)', inline: true },
+          const logEmbed = modEmbed(emojis.unmute, t('MOD_UNMUTE_TITLE'), [
+            { name: emojis.user + ' Target', value: targetStr, inline: true },
             { name: emojis.gavel + ' Moderator', value: message.author.tag, inline: true },
           ], { color: COLORS.success, thumbnail: member.user.displayAvatarURL({ dynamic: true }) });
 
           await i.update({ embeds: [logEmbed], components: [] });
           await Log.addLog(message.guild.id, 'mod', 'unmute', message.author.id, member.id, '');
         } catch (err) {
-          await i.update({ embeds: [errorEmbed('Unmute Failed', 'An error occurred: ' + err.message)], components: [] });
+          await i.update({ embeds: [errorEmbed(t('MOD_UNMUTE_TITLE', 'Error'), err.message)], components: [] });
         }
       }
     });
@@ -84,41 +86,42 @@ module.exports = {
     collector.on('end', async (collected, reason) => {
       if (reason === 'confirmed' || reason === 'cancelled') return;
       try {
-        await msg.edit({ embeds: [errorEmbed('Timed Out', 'Confirmation expired. Action was not executed.')], components: [] });
+        await msg.edit({ embeds: [errorEmbed(t('MOD_TIMED_OUT'), '')], components: [] });
       } catch {}
     });
   },
 
   async slashExecute(interaction, client) {
+    const t = await getT(interaction.guild.id);
+
     const user = interaction.options.getUser('user');
     const member = interaction.guild.members.cache.get(user.id);
 
     if (!member) {
-      return interaction.reply({ embeds: [errorEmbed('Not Found', 'User is not in this server.')], ephemeral: true });
+      return interaction.reply({ embeds: [errorEmbed(t('MOD_UNMUTE_TITLE', 'Error'), t('MOD_UNMUTE_NOT_FOUND'))], ephemeral: true });
     }
     if (!member.isCommunicationDisabled()) {
-      return interaction.reply({ embeds: [errorEmbed('Not Muted', 'This user is not currently muted.')], ephemeral: true });
+      return interaction.reply({ embeds: [errorEmbed(t('MOD_UNMUTE_NOT_MUTED'), '')], ephemeral: true });
     }
+
+    const targetStr = user.tag + ' (`' + user.id + '`)';
 
     const confirm = confirmEmbed(
       emojis.unmute,
-      'Unmute Confirmation',
-      [
-        '**Target:** ' + user.tag + ' (`' + user.id + '`)',
-        '**Moderator:** ' + interaction.user.tag,
-      ].join('\n'),
+      t('MOD_CONFIRM_TITLE', 'Unmute'),
+      t('MOD_UNMUTE_CONFIRM', targetStr, interaction.user.tag),
       { thumbnail: user.displayAvatarURL({ dynamic: true }) }
     );
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('mod_confirm_unmute_' + interaction.user.id)
-        .setLabel('Confirm Unmute')
+        .setLabel(t('MOD_CONFIRM_BTN', 'Unmute'))
         .setStyle(ButtonStyle.Success)
         .setEmoji(emojis.unmute),
       new ButtonBuilder()
         .setCustomId('mod_cancel_' + interaction.user.id)
-        .setLabel('Cancel')
+        .setLabel(t('MOD_CANCEL_BTN'))
         .setStyle(ButtonStyle.Secondary)
         .setEmoji(emojis.cross)
     );
@@ -134,7 +137,7 @@ module.exports = {
 
       if (i.customId === 'mod_cancel_' + interaction.user.id) {
         collector.stop('cancelled');
-        return i.update({ embeds: [errorEmbed('Unmute Cancelled', 'Action was cancelled.')], components: [] });
+        return i.update({ embeds: [errorEmbed(t('MOD_CANCELLED'), '')], components: [] });
       }
 
       if (i.customId === 'mod_confirm_unmute_' + interaction.user.id) {
@@ -142,15 +145,15 @@ module.exports = {
         try {
           await member.timeout(null);
 
-          const logEmbed = modEmbed(emojis.unmute, 'Member Unmuted', [
-            { name: emojis.user + ' Target', value: user.tag + ' (`' + user.id + '`)', inline: true },
+          const logEmbed = modEmbed(emojis.unmute, t('MOD_UNMUTE_TITLE'), [
+            { name: emojis.user + ' Target', value: targetStr, inline: true },
             { name: emojis.gavel + ' Moderator', value: interaction.user.tag, inline: true },
           ], { color: COLORS.success, thumbnail: user.displayAvatarURL({ dynamic: true }) });
 
           await i.update({ embeds: [logEmbed], components: [] });
           await Log.addLog(interaction.guild.id, 'mod', 'unmute', interaction.user.id, user.id, '');
         } catch (err) {
-          await i.update({ embeds: [errorEmbed('Unmute Failed', err.message)], components: [] });
+          await i.update({ embeds: [errorEmbed(t('MOD_UNMUTE_TITLE', 'Error'), err.message)], components: [] });
         }
       }
     });
@@ -158,7 +161,7 @@ module.exports = {
     collector.on('end', async (collected, reason) => {
       if (reason === 'confirmed' || reason === 'cancelled') return;
       try {
-        await msg.edit({ embeds: [errorEmbed('Timed Out', 'Confirmation expired. Action was not executed.')], components: [] });
+        await msg.edit({ embeds: [errorEmbed(t('MOD_TIMED_OUT'), '')], components: [] });
       } catch {}
     });
   },

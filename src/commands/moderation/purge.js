@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { successEmbed, errorEmbed, confirmEmbed, modEmbed, COLORS } = require('../../utils/embeds');
 const emojis = require('../../utils/emojis');
+const { getT } = require('../../i18n');
 
 module.exports = {
   name: 'purge',
@@ -13,34 +14,32 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   async execute(message, args) {
+    const t = await getT(message.guild.id);
+
     if (!message.member.permissions.has('ManageMessages')) {
-      return message.reply({ embeds: [errorEmbed('Access Denied', 'You need the `Manage Messages` permission.')] });
+      return message.reply({ embeds: [errorEmbed(t('MOD_CONFIRM_TITLE', 'Error'), t('MOD_ACCESS_DENIED', '`Manage Messages`'))] });
     }
 
     const amount = parseInt(args[0]);
     if (isNaN(amount) || amount < 1 || amount > 100) {
-      return message.reply({ embeds: [errorEmbed('Invalid Amount', 'Please provide a number between **1** and **100**.')] });
+      return message.reply({ embeds: [errorEmbed(t('ERR_INVALID_USAGE'), '`!purge <1-100>`')] });
     }
 
     const confirm = confirmEmbed(
       emojis.purge,
-      'Purge Confirmation',
-      [
-        '**Channel:** ' + message.channel,
-        '**Amount:** ' + amount + ' message(s)',
-        '**Moderator:** ' + message.author.tag,
-      ].join('\n')
+      t('MOD_CONFIRM_TITLE', 'Purge'),
+      t('MOD_PURGE_CONFIRM', message.channel.toString(), '' + amount, message.author.tag)
     );
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('mod_confirm_purge_' + message.author.id)
-        .setLabel('Confirm Purge')
+        .setLabel(t('MOD_CONFIRM_BTN', 'Purge'))
         .setStyle(ButtonStyle.Danger)
         .setEmoji(emojis.purge),
       new ButtonBuilder()
         .setCustomId('mod_cancel_' + message.author.id)
-        .setLabel('Cancel')
+        .setLabel(t('MOD_CANCEL_BTN'))
         .setStyle(ButtonStyle.Secondary)
         .setEmoji(emojis.cross)
     );
@@ -55,7 +54,7 @@ module.exports = {
 
       if (i.customId === 'mod_cancel_' + message.author.id) {
         collector.stop('cancelled');
-        return i.update({ embeds: [errorEmbed('Purge Cancelled', 'Action was cancelled by ' + message.author.tag + '.')], components: [] });
+        return i.update({ embeds: [errorEmbed(t('MOD_CANCELLED'), '')], components: [] });
       }
 
       if (i.customId === 'mod_confirm_purge_' + message.author.id) {
@@ -63,7 +62,7 @@ module.exports = {
         try {
           const deleted = await message.channel.bulkDelete(amount + 1, true);
 
-          const logEmbed = modEmbed(emojis.purge, 'Messages Purged', [
+          const logEmbed = modEmbed(emojis.purge, t('MOD_PURGE_TITLE'), [
             { name: emojis.channel + ' Channel', value: message.channel.toString(), inline: true },
             { name: emojis.gavel + ' Moderator', value: message.author.tag, inline: true },
             { name: emojis.chart + ' Deleted', value: (deleted.size - 1) + ' message(s)', inline: true },
@@ -71,10 +70,10 @@ module.exports = {
 
           await i.update({ embeds: [logEmbed], components: [] });
 
-          const autoDelete = await message.channel.send({ embeds: [successEmbed('Purged', emojis.check + ' Deleted **' + (deleted.size - 1) + '** messages.')] });
+          const autoDelete = await message.channel.send({ embeds: [successEmbed(t('MOD_PURGE_TITLE'), emojis.check + ' ' + t('MOD_PURGE_SUCCESS', '' + (deleted.size - 1)))] });
           setTimeout(function() { autoDelete.delete().catch(function() {}); }, 5000);
         } catch (err) {
-          await i.update({ embeds: [errorEmbed('Purge Failed', 'An error occurred: ' + err.message)], components: [] });
+          await i.update({ embeds: [errorEmbed(t('MOD_PURGE_TITLE', 'Error'), err.message)], components: [] });
         }
       }
     });
@@ -82,33 +81,31 @@ module.exports = {
     collector.on('end', async (collected, reason) => {
       if (reason === 'confirmed' || reason === 'cancelled') return;
       try {
-        await msg.edit({ embeds: [errorEmbed('Timed Out', 'Confirmation expired. Action was not executed.')], components: [] });
+        await msg.edit({ embeds: [errorEmbed(t('MOD_TIMED_OUT'), '')], components: [] });
       } catch {}
     });
   },
 
   async slashExecute(interaction, client) {
+    const t = await getT(interaction.guild.id);
+
     const amount = interaction.options.getInteger('amount');
 
     const confirm = confirmEmbed(
       emojis.purge,
-      'Purge Confirmation',
-      [
-        '**Channel:** ' + interaction.channel.toString(),
-        '**Amount:** ' + amount + ' message(s)',
-        '**Moderator:** ' + interaction.user.tag,
-      ].join('\n')
+      t('MOD_CONFIRM_TITLE', 'Purge'),
+      t('MOD_PURGE_CONFIRM', interaction.channel.toString(), '' + amount, interaction.user.tag)
     );
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('mod_confirm_purge_' + interaction.user.id)
-        .setLabel('Confirm Purge')
+        .setLabel(t('MOD_CONFIRM_BTN', 'Purge'))
         .setStyle(ButtonStyle.Danger)
         .setEmoji(emojis.purge),
       new ButtonBuilder()
         .setCustomId('mod_cancel_' + interaction.user.id)
-        .setLabel('Cancel')
+        .setLabel(t('MOD_CANCEL_BTN'))
         .setStyle(ButtonStyle.Secondary)
         .setEmoji(emojis.cross)
     );
@@ -124,7 +121,7 @@ module.exports = {
 
       if (i.customId === 'mod_cancel_' + interaction.user.id) {
         collector.stop('cancelled');
-        return i.update({ embeds: [errorEmbed('Purge Cancelled', 'Action was cancelled.')], components: [] });
+        return i.update({ embeds: [errorEmbed(t('MOD_CANCELLED'), '')], components: [] });
       }
 
       if (i.customId === 'mod_confirm_purge_' + interaction.user.id) {
@@ -132,7 +129,7 @@ module.exports = {
         try {
           const deleted = await interaction.channel.bulkDelete(amount, true);
 
-          const logEmbed = modEmbed(emojis.purge, 'Messages Purged', [
+          const logEmbed = modEmbed(emojis.purge, t('MOD_PURGE_TITLE'), [
             { name: emojis.channel + ' Channel', value: interaction.channel.toString(), inline: true },
             { name: emojis.gavel + ' Moderator', value: interaction.user.tag, inline: true },
             { name: emojis.chart + ' Deleted', value: deleted.size + ' message(s)', inline: true },
@@ -140,7 +137,7 @@ module.exports = {
 
           await i.update({ embeds: [logEmbed], components: [] });
         } catch (err) {
-          await i.update({ embeds: [errorEmbed('Purge Failed', err.message)], components: [] });
+          await i.update({ embeds: [errorEmbed(t('MOD_PURGE_TITLE', 'Error'), err.message)], components: [] });
         }
       }
     });
@@ -148,7 +145,7 @@ module.exports = {
     collector.on('end', async (collected, reason) => {
       if (reason === 'confirmed' || reason === 'cancelled') return;
       try {
-        await msg.edit({ embeds: [errorEmbed('Timed Out', 'Confirmation expired. Action was not executed.')], components: [] });
+        await msg.edit({ embeds: [errorEmbed(t('MOD_TIMED_OUT'), '')], components: [] });
       } catch {}
     });
   },
