@@ -2,7 +2,6 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const { connectDatabase } = require('./src/database/connection');
 const { loadCommands } = require('./src/utils/commandHandler');
-const { registerSlashCommands } = require('./src/utils/slashCommandHandler');
 const { loadEvents } = require('./src/utils/eventHandler');
 const { setupCommandTracking } = require('./src/utils/botStats');
 const createServer = require('./src/api/server');
@@ -25,11 +24,5 @@ const client = new Client({
   loadEvents(client);
   setupCommandTracking(client);
   createServer(client);
-
-  client.once('ready', async () => {
-    console.log(`Logged in as ${client.user.tag}`);
-    await registerSlashCommands(client);
-  });
-
   client.login(process.env.TOKEN);
 })();

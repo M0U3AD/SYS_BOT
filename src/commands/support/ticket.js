@@ -2,6 +2,7 @@ const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder
 const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
 const { getGuildConfig, updateGuildConfig } = require('../../database/utils/GuildConfig');
 const Ticket = require('../../database/models/Ticket');
+const config = require('../../../config.json');
 
 module.exports = {
   name: 'ticket',

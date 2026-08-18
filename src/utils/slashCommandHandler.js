@@ -2,7 +2,7 @@ const { REST, Routes, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
-constFolders = [
+const folders = [
   'moderation',
   'utility',
   'admin',
@@ -18,7 +18,7 @@ async function registerSlashCommands(client) {
   client.slashCommands = new Collection();
   const commands = [];
 
-  for (const folder ofFolders) {
+  for (const folder of folders) {
     const folderPath = path.join(__dirname, '..', 'commands', folder);
     if (!fs.existsSync(folderPath)) continue;
 

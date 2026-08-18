@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
 const Poll = require('../../database/models/Poll');
+const config = require('../../../config.json');
 
 module.exports = {
   name: 'poll',
