@@ -56,8 +56,9 @@ router.get('/me', (req, res) => {
 });
 
 router.post('/logout', (req, res) => {
-  req.session.destroy(() => {});
-  res.json({ ok: true });
+  req.session.destroy(() => {
+    res.json({ ok: true });
+  });
 });
 
 module.exports = router;

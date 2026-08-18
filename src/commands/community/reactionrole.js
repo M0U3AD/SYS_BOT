@@ -42,8 +42,9 @@ module.exports = {
 
     if (args[0] === 'create') {
       const title = args.slice(1).join(' ') || 'Select Your Roles';
+      const cfg = await getGuildConfig(message.guild.id);
       const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
+        .setColor(cfg.embedColor)
         .setTitle(title)
         .setDescription('React with the corresponding emoji to get/remove a role.\n\n*Use `!reactionrole add <emoji> <@role>` to add pairs, then recreate.*')
         .setTimestamp();

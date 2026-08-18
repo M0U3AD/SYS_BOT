@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
-const { successEmbed, errorEmbed } = require('../utils/embeds');
+const { errorEmbed } = require('../utils/embeds');
 const { getGuildConfig } = require('../database/utils/GuildConfig');
 
 module.exports = {
@@ -46,7 +46,9 @@ module.exports = {
           await interaction.reply({ content: 'You have been verified! Welcome to the server.', ephemeral: true });
           try { await interaction.message.delete(); } catch {}
         } catch {
-          await interaction.reply({ content: 'Failed to verify. Contact a mod.', ephemeral: true });
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: 'Failed to verify. Contact a mod.', ephemeral: true });
+          }
         }
         return;
       }

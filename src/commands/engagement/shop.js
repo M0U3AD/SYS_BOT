@@ -21,13 +21,12 @@ module.exports = {
       .addStringOption(opt => opt.setName('name').setDescription('Name').setRequired(true))
       .addIntegerOption(opt => opt.setName('price').setDescription('Price').setRequired(true))
       .addStringOption(opt => opt.setName('description').setDescription('Description'))
-      .addRoleOption(opt => opt.setName('role').setDescription('Role granted on purchase'))
-      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild))
+      .addRoleOption(opt => opt.setName('role').setDescription('Role granted on purchase')))
     .addSubcommand(sub => sub
       .setName('remove')
       .setDescription('Remove item (admin)')
-      .addStringOption(opt => opt.setName('name').setDescription('Item name').setRequired(true))
-      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)),
+      .addStringOption(opt => opt.setName('name').setDescription('Item name').setRequired(true)))
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   async execute(message, args) {
     const config = await getGuildConfig(message.guild.id);
     if (!config.economy.enabled) return message.reply({ embeds: [errorEmbed('Disabled', 'Economy is not enabled.')] });
