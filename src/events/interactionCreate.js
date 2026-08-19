@@ -57,11 +57,14 @@ async function refreshPanel(interaction, data) {
 
 function buildPreviewEmbed(data) {
   var pairs = data.pairs || [];
-  var description = pairs.map(function(p) { return p.emoji + ' \u2192 <@&' + p.roleId + '>'; }).join('\n');
+  var roleLines = pairs.map(function(p) {
+    return p.emoji + ' <@&' + p.roleId + '>';
+  }).join('\n');
+  var description = 'Click the buttons below to **earn** or **remove** your roles.\n\n' + roleLines;
   return new EmbedBuilder()
     .setColor(COLORS.blurple)
     .setTitle(data.title || 'Select Your Roles')
-    .setDescription(description + '\n\nClick a button below to get/remove a role.')
+    .setDescription(description)
     .setTimestamp()
     .setFooter({ text: 'SYS-F1ex \u2022 Reaction Roles' });
 }
@@ -74,7 +77,7 @@ function buildPreviewButtons(data) {
   pairs.forEach(function(p, i) {
     if (i > 0 && i % 5 === 0) { rows.push(currentRow); currentRow = new ActionRowBuilder(); }
     currentRow.addComponents(
-      new ButtonBuilder().setCustomId('rr_toggle_' + i).setLabel(p.roleName || ('Role ' + (i + 1))).setStyle(ButtonStyle.Secondary).setEmoji(p.emoji)
+      new ButtonBuilder().setCustomId('rr_toggle_' + i).setLabel(p.roleName || ('Role ' + (i + 1))).setStyle(ButtonStyle.Success).setEmoji(p.emoji)
     );
   });
   rows.push(currentRow);
@@ -112,9 +115,6 @@ module.exports = {
       if (interaction.customId === 'ticket_claim') { return handleTicketClaim(interaction, client); }
       if (interaction.customId.startsWith('app_accept_') || interaction.customId.startsWith('app_deny_')) { return handleApplicationReview(interaction, client); }
       if (interaction.customId.startsWith('giveaway_')) { return handleGiveaway(interaction); }
-      if (interaction.customId.startsWith('setup_toggle_')) { return handleSetupToggle(interaction); }
-      if (interaction.customId.startsWith('setup_panel_')) { return handleSetupPanel(interaction); }
-      if (interaction.customId === 'setup_back') { return handleSetupBack(interaction); }
       if (interaction.customId.startsWith('broadcast_confirm_') || interaction.customId.startsWith('broadcast_cancel_')) { return; }
       if (interaction.customId.startsWith('mod_confirm_') || interaction.customId.startsWith('mod_cancel_')) { return; }
       return;
@@ -410,58 +410,4 @@ async function handleGiveaway(interaction) {
   if (!giveaway) return interaction.reply({ content: 'This giveaway has ended.', ephemeral: true });
   if (giveaway.entries.includes(interaction.user.id)) { giveaway.entries = giveaway.entries.filter(function(id) { return id !== interaction.user.id; }); await giveaway.save(); return interaction.reply({ content: 'You left the giveaway.', ephemeral: true }); }
   else { giveaway.entries.push(interaction.user.id); await giveaway.save(); return interaction.reply({ content: 'You entered the giveaway! Good luck!', ephemeral: true }); }
-}
-
-async function handleSetupToggle(interaction) {
-  var feature = interaction.customId.replace('setup_toggle_', '');
-  var config = await getGuildConfig(interaction.guild.id);
-  var { updateGuildConfig: updateCfg } = require('../database/utils/GuildConfig');
-  var toggleMap = { 'automod': 'moderation.automod.enabled', 'welcome': 'welcome.enabled', 'goodbye': 'goodbye.enabled', 'tickets': 'tickets.enabled', 'xp': 'xp.enabled', 'economy': 'economy.enabled', 'giveaways': 'giveaways.enabled', 'verification': 'verification.enabled' };
-  var path = toggleMap[feature];
-  if (!path) return interaction.reply({ content: 'Unknown feature.', ephemeral: true });
-  var current = config; var parts = path.split('.');
-  for (var i = 0; i < parts.length - 1; i++) { current = current[parts[i]]; }
-  var newVal = !current[parts[parts.length - 1]];
-  var update = {}; update[path] = newVal;
-  await updateCfg(interaction.guild.id, update);
-  await interaction.reply({ content: 'Feature toggled to **' + (newVal ? 'ON' : 'OFF') + '**.', ephemeral: true });
-}
-
-async function handleSetupPanel(interaction) {
-  var panel = interaction.customId.replace('setup_panel_', '');
-  var config = await getGuildConfig(interaction.guild.id);
-  var panels = {
-    'moderation': { title: emojis.shield + ' Moderation Setup', desc: 'Configure auto-moderation and punishment settings.', fields: [{ name: 'AutoMod', value: config.moderation.automod.enabled ? '🟢 ON' : '🔴 OFF', inline: true }, { name: 'Warn Auto-Mute', value: config.moderation.warnAutoMute > 0 ? 'After ' + config.moderation.warnAutoMute + ' warns' : 'Disabled', inline: true }, { name: 'Warn Auto-Ban', value: config.moderation.warnAutoBan > 0 ? 'After ' + config.moderation.warnAutoBan + ' warns' : 'Disabled', inline: true }], toggleId: 'setup_toggle_automod' },
-    'welcome': { title: emojis.globe + ' Welcome/Goodbye Setup', desc: 'Configure welcome and goodbye messages.', fields: [{ name: 'Welcome', value: config.welcome.enabled ? '🟢 ON' : '🔴 OFF', inline: true }, { name: 'Goodbye', value: config.goodbye.enabled ? '🟢 ON' : '🔴 OFF', inline: true }, { name: 'Welcome Channel', value: config.welcome.channelId ? '<#' + config.welcome.channelId + '>' : 'Not set', inline: true }], toggleId: 'setup_toggle_welcome' },
-    'tickets': { title: emojis.ticket + ' Ticket Setup', desc: 'Configure the ticket system.', fields: [{ name: 'Enabled', value: config.tickets.enabled ? '🟢 ON' : '🔴 OFF', inline: true }, { name: 'Support Role', value: config.tickets.supportRoleId ? '<@&' + config.tickets.supportRoleId + '>' : 'Not set', inline: true }], toggleId: 'setup_toggle_tickets' },
-    'xp': { title: emojis.star + ' XP/Levels Setup', desc: 'Configure the XP and leveling system.', fields: [{ name: 'Enabled', value: config.xp.enabled ? '🟢 ON' : '🔴 OFF', inline: true }, { name: 'XP Per Message', value: '' + config.xp.xpPerMessage, inline: true }], toggleId: 'setup_toggle_xp' },
-    'economy': { title: emojis.coin + ' Economy Setup', desc: 'Configure the economy system.', fields: [{ name: 'Enabled', value: config.economy.enabled ? '🟢 ON' : '🔴 OFF', inline: true }, { name: 'Currency', value: config.economy.currencyEmoji + ' ' + config.economy.currencyName, inline: true }], toggleId: 'setup_toggle_economy' },
-    'giveaways': { title: emojis.giveaway + ' Giveaway Setup', desc: 'Configure the giveaway system.', fields: [{ name: 'Enabled', value: config.giveaways.enabled ? '🟢 ON' : '🔴 OFF', inline: true }], toggleId: 'setup_toggle_giveaways' },
-  };
-  var panelData = panels[panel];
-  if (!panelData) return interaction.reply({ content: 'Unknown panel.', ephemeral: true });
-  var embed = new EmbedBuilder().setColor(COLORS.blurple).setTitle(panelData.title).setDescription(panelData.desc).addFields(panelData.fields).setTimestamp().setFooter({ text: 'SYS-F1ex \u2022 Click to toggle' });
-  var { ActionRowBuilder: AR, ButtonBuilder: BB, ButtonStyle: BS } = require('discord.js');
-  var row = new AR().addComponents(new BB().setCustomId(panelData.toggleId).setLabel('Toggle On/Off').setStyle(BS.Primary).setEmoji(emojis.bolt), new BB().setCustomId('setup_back').setLabel('Back').setStyle(BS.Secondary).setEmoji(emojis.arrow_left));
-  await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
-}
-
-async function handleSetupBack(interaction) {
-  var config = await getGuildConfig(interaction.guild.id);
-  var fields = [
-    { name: emojis.shield + ' Moderation', value: config.moderation.automod.enabled ? '🟢 ON' : '🔴 OFF', inline: true },
-    { name: emojis.globe + ' Welcome', value: config.welcome.enabled ? '🟢 ON' : '🔴 OFF', inline: true },
-    { name: emojis.ticket + ' Tickets', value: config.tickets.enabled ? '🟢 ON' : '🔴 OFF', inline: true },
-    { name: emojis.star + ' XP/Levels', value: config.xp.enabled ? '🟢 ON' : '🔴 OFF', inline: true },
-    { name: emojis.coin + ' Economy', value: config.economy.enabled ? '🟢 ON' : '🔴 OFF', inline: true },
-    { name: emojis.giveaway + ' Giveaways', value: config.giveaways.enabled ? '🟢 ON' : '🔴 OFF', inline: true },
-    { name: emojis.notify + ' Notifications', value: 'YT: ' + (config.notifications.youtube ? config.notifications.youtube.length : 0) + ' | TW: ' + (config.notifications.twitch ? config.notifications.twitch.length : 0), inline: true },
-    { name: emojis.globe + ' Language', value: (config.language || 'en').toUpperCase(), inline: true },
-    { name: emojis.eye + ' Verification', value: config.verification.enabled ? '🟢 ON' : '🔴 OFF', inline: true },
-  ];
-  var embed = new EmbedBuilder().setColor(COLORS.blurple).setTitle(emojis.gear + ' SYS-F1ex Setup').setDescription('Click a button below to configure each feature:').addFields(fields).setTimestamp().setFooter({ text: 'SYS-F1ex \u2022 Dashboard' });
-  var { ActionRowBuilder: AR, ButtonBuilder: BB, ButtonStyle: BS } = require('discord.js');
-  var row1 = new AR().addComponents(new BB().setCustomId('setup_panel_moderation').setLabel('Moderation').setStyle(BS.Primary).setEmoji(emojis.shield), new BB().setCustomId('setup_panel_welcome').setLabel('Welcome').setStyle(BS.Primary).setEmoji(emojis.globe), new BB().setCustomId('setup_panel_tickets').setLabel('Tickets').setStyle(BS.Primary).setEmoji(emojis.ticket), new BB().setCustomId('setup_panel_xp').setLabel('XP').setStyle(BS.Primary).setEmoji(emojis.star), new BB().setCustomId('setup_panel_economy').setLabel('Economy').setStyle(BS.Primary).setEmoji(emojis.coin));
-  var row2 = new AR().addComponents(new BB().setCustomId('setup_panel_giveaways').setLabel('Giveaways').setStyle(BS.Secondary).setEmoji(emojis.giveaway), new BB().setCustomId('setup_panel_notifications').setLabel('Notifications').setStyle(BS.Secondary).setEmoji(emojis.notify), new BB().setCustomId('setup_panel_verification').setLabel('Verification').setStyle(BS.Secondary).setEmoji(emojis.eye));
-  await interaction.reply({ embeds: [embed], components: [row1, row2], ephemeral: true });
 }
