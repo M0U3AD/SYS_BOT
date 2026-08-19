@@ -45,7 +45,8 @@ function buildPanelEmbed(guild, data) {
   var pairsList = 'No role pairs added yet.';
   if (pairs.length > 0) {
     pairsList = pairs.map(function(p, i) {
-      return '**' + (i + 1) + '.** ' + (p.emojiStr || p.emoji) + ' \u2192 <@&' + p.roleId + '>';
+      var label = p.label ? ' **' + p.label + '**' : '';
+      return '**' + (i + 1) + '.** ' + (p.emojiStr || p.emoji) + label + ' \u2192 <@&' + p.roleId + '>';
     }).join('\n');
   }
 
@@ -110,7 +111,7 @@ function buildPreviewButtons(data) {
     currentRow.addComponents(
       new ButtonBuilder()
         .setCustomId('rr_toggle_' + i)
-        .setLabel(p.roleName || 'Role ' + (i + 1))
+        .setLabel(p.label || p.roleName || 'Role ' + (i + 1))
         .setStyle(ButtonStyle.Success)
         .setEmoji(p.emoji)
     );
@@ -185,7 +186,8 @@ async function showAddModal(interaction) {
   var modal = new ModalBuilder().setCustomId('rr_modal_add').setTitle('Add Role Pair');
   var roleInput = new TextInputBuilder().setCustomId('rr_role_input').setLabel('Role (mention or ID)').setPlaceholder('@Moderator or 1234567890123456789').setStyle(TextInputStyle.Short).setRequired(true);
   var emojiInput = new TextInputBuilder().setCustomId('rr_emoji_input').setLabel('Emoji (unicode or custom)').setPlaceholder('🔴 or :moderator: or <a:star:123>').setStyle(TextInputStyle.Short).setRequired(true);
-  modal.addComponents(new ActionRowBuilder().addComponents(roleInput), new ActionRowBuilder().addComponents(emojiInput));
+  var labelInput = new TextInputBuilder().setCustomId('rr_label_input').setLabel('Button label (optional)').setPlaceholder('Defaults to the role name if empty').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(80);
+  modal.addComponents(new ActionRowBuilder().addComponents(roleInput), new ActionRowBuilder().addComponents(emojiInput), new ActionRowBuilder().addComponents(labelInput));
   await interaction.showModal(modal);
 }
 
@@ -229,6 +231,7 @@ async function submitPair(interaction) {
 
   var roleText = interaction.fields.getTextInputValue('rr_role_input').trim();
   var emojiText = interaction.fields.getTextInputValue('rr_emoji_input').trim();
+  var buttonLabel = interaction.fields.getTextInputValue('rr_label_input').trim();
 
   var roleId = null;
   var roleName = roleText;
@@ -268,7 +271,7 @@ async function submitPair(interaction) {
     return interaction.reply({ embeds: [errorEmbed('Duplicate', 'This emoji or role is already in the list.')], ephemeral: true });
   }
 
-  data.pairs.push({ roleId: roleId, roleName: roleName, emoji: emoji, emojiStr: emojiStr });
+  data.pairs.push({ roleId: roleId, roleName: roleName, label: buttonLabel, emoji: emoji, emojiStr: emojiStr });
   saveSetup(data);
 
   await interaction.reply({ embeds: [successEmbed('Pair Added', emojis.check + ' Added **' + emojiStr + '** \u2192 <@&' + roleId + '> (' + data.pairs.length + ' total pair(s))')], ephemeral: true });
@@ -282,7 +285,8 @@ async function showRemoveSelect(interaction) {
 
   var selectMenu = new StringSelectMenuBuilder().setCustomId('rr_select_remove').setPlaceholder('Select pairs to remove').setMinValues(1).setMaxValues(data.pairs.length);
   data.pairs.forEach(function(p, idx) {
-    selectMenu.addOptions({ label: p.roleName || 'Role ' + (idx + 1), description: (p.emojiStr || p.emoji) + ' \u2192 Role', value: '' + idx });
+    var label = p.label || p.roleName || ('Role ' + (idx + 1));
+    selectMenu.addOptions({ label: label, description: (p.emojiStr || p.emoji) + ' \u2192 <@&' + p.roleId + '>', value: '' + idx });
   });
   var selectRow = new ActionRowBuilder().addComponents(selectMenu);
   return interaction.reply({ content: '**Select pairs to remove:**', components: [selectRow], ephemeral: true });
@@ -393,7 +397,7 @@ async function sendPanel(interaction) {
       message: data.message,
       image: data.image || '',
       roles: data.pairs.map(function(p) {
-        return { roleId: p.roleId, emoji: p.emoji, roleName: p.roleName };
+        return { roleId: p.roleId, emoji: p.emoji, roleName: p.roleName, label: p.label };
       }),
     });
     await updateGuildConfig(interaction.guild.id, { reactionRoles: config.reactionRoles });

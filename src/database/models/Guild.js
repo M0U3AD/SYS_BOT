@@ -41,6 +41,8 @@ const guildSchema = new mongoose.Schema({
     roles: [{
       emoji: String,
       roleId: String,
+      roleName: String,
+      label: String,
     }],
   }],
 
