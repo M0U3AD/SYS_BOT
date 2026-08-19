@@ -1,89 +1,26 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { successEmbed, errorEmbed, infoEmbed, modEmbed, dashboardEmbed, COLORS } = require('../../utils/embeds');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { successEmbed, errorEmbed, infoEmbed, modEmbed, COLORS } = require('../../utils/embeds');
 const emojis = require('../../utils/emojis');
 const { getGuildConfig, updateGuildConfig } = require('../../database/utils/GuildConfig');
-const { initSetup } = require('../../events/interactionCreate');
+const { startSetup } = require('../../utils/reactionRoles');
 
-function buildPanelEmbed(guild, data) {
-  var pairs = data.pairs || [];
-  var channel = data.channelId ? '<#' + data.channelId + '>' : 'Not set';
-  var title = data.title || 'Select Your Roles';
-
-  var pairsList = 'No role pairs added yet.';
-  if (pairs.length > 0) {
-    pairsList = pairs.map(function(p, i) {
-      return '**' + (i + 1) + '.** ' + p.emoji + ' \u2192 <@&' + p.roleId + '>';
-    }).join('\n');
+function buildList(config) {
+  var rrs = config.reactionRoles || [];
+  if (rrs.length === 0) {
+    return { empty: true };
   }
-
-  return dashboardEmbed(
-    emojis.role + ' Reaction Role Setup',
-    '\u200b',
-    [
-      { name: emojis.tag + ' Title', value: title, inline: true },
-      { name: emojis.channel + ' Channel', value: channel, inline: true },
-      { name: emojis.chart + ' Pairs', value: '' + pairs.length, inline: true },
-      { name: '\u200b', value: '\u200b', inline: true },
-      { name: emojis.list + ' Role Pairs', value: pairsList, inline: false },
-    ],
-    { color: COLORS.blurple }
-  );
-}
-
-function buildPanelButtons(hasPairs, hasChannel) {
-  var row1 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('rr_add_pair')
-      .setLabel('Add Role Pair')
-      .setStyle(ButtonStyle.Success)
-      .setEmoji(emojis.add),
-    new ButtonBuilder()
-      .setCustomId('rr_remove_pair')
-      .setLabel('Remove Pair')
-      .setStyle(ButtonStyle.Danger)
-      .setEmoji(emojis.remove)
-      .setDisabled(!hasPairs),
-    new ButtonBuilder()
-      .setCustomId('rr_set_channel')
-      .setLabel('Set Channel')
-      .setStyle(ButtonStyle.Primary)
-      .setEmoji(emojis.channel)
-  );
-
-  var row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('rr_send')
-      .setLabel('Send Reaction Role')
-      .setStyle(ButtonStyle.Success)
-      .setEmoji(emojis.send)
-      .setDisabled(!hasPairs || !hasChannel),
-    new ButtonBuilder()
-      .setCustomId('rr_cancel')
-      .setLabel('Cancel')
-      .setStyle(ButtonStyle.Secondary)
-      .setEmoji(emojis.cross)
-  );
-
-  return [row1, row2];
-}
-
-async function startSetup(source, client) {
-  var guild = source.guild;
-  var userId = source.member ? source.member.id : source.user.id;
-
-  var embed = buildPanelEmbed(guild, { pairs: [], channelId: null, title: 'Select Your Roles' });
-  var buttons = buildPanelButtons(false, false);
-
-  var msg;
-  if (source.replied || source.deferred) {
-    await source.editReply({ embeds: [embed], components: buttons });
-    msg = await source.fetchReply();
-  } else {
-    msg = await source.reply({ embeds: [embed], components: buttons });
-  }
-
-  var data = { pairs: [], channelId: null, title: 'Select Your Roles', guildId: guild.id, panelMessage: msg, panelMsgId: msg.id, panelChannelId: msg.channelId };
-  initSetup(userId, data);
+  var list = rrs.map(function(rr, i) {
+    var channel = rr.channelId ? '<#' + rr.channelId + '>' : 'Unknown';
+    var roleCount = rr.roles ? rr.roles.length : 0;
+    return '**' + (i + 1) + '.** ' + (rr.title || 'Untitled') + ' \u2022 ' + channel + ' \u2022 ' + roleCount + ' role(s) \u2022 `' + rr.messageId + '`';
+  }).join('\n');
+  return {
+    empty: false,
+    embed: modEmbed(emojis.list, 'Reaction Roles', [
+      { name: emojis.chart + ' Total', value: '' + rrs.length, inline: true },
+      { name: '\u200b', value: list, inline: false },
+    ], { color: COLORS.blurple }),
+  };
 }
 
 module.exports = {
@@ -112,23 +49,11 @@ module.exports = {
 
     if (args[0] === 'list') {
       var config = await getGuildConfig(message.guild.id);
-      var rrs = config.reactionRoles || [];
-      if (rrs.length === 0) {
+      var result = buildList(config);
+      if (result.empty) {
         return message.reply({ embeds: [infoEmbed('Reaction Roles', emojis.list + ' No reaction role messages configured.\nUse `!reactionrole setup` to create one.')] });
       }
-
-      var list = rrs.map(function(rr, i) {
-        var channel = rr.channelId ? '<#' + rr.channelId + '>' : 'Unknown';
-        var roleCount = rr.roles ? rr.roles.length : 0;
-        return '**' + (i + 1) + '.** ' + (rr.title || 'Untitled') + ' \u2022 ' + channel + ' \u2022 ' + roleCount + ' role(s) \u2022 `' + rr.messageId + '`';
-      }).join('\n');
-
-      var embed = modEmbed(emojis.list, 'Reaction Roles', [
-        { name: emojis.chart + ' Total', value: '' + rrs.length, inline: true },
-        { name: '\u200b', value: list, inline: false },
-      ], { color: COLORS.blurple });
-
-      return message.reply({ embeds: [embed] });
+      return message.reply({ embeds: [result.embed] });
     }
 
     if (args[0] === 'delete') {
@@ -141,9 +66,9 @@ module.exports = {
       }
 
       try {
-        var ch = message.guild.channels.cache.get(found.channelId);
-        if (ch) {
-          var msg = await ch.messages.fetch(args[1]);
+        var channel = message.guild.channels.cache.get(found.channelId);
+        if (channel) {
+          var msg = await channel.messages.fetch(args[1]);
           if (msg) await msg.delete().catch(function() {});
         }
       } catch (e) {}
@@ -170,23 +95,11 @@ module.exports = {
 
     if (sub === 'list') {
       var config = await getGuildConfig(interaction.guild.id);
-      var rrs = config.reactionRoles || [];
-      if (rrs.length === 0) {
+      var result = buildList(config);
+      if (result.empty) {
         return interaction.reply({ embeds: [infoEmbed('Reaction Roles', emojis.list + ' No reaction role messages configured.\nUse `/reactionrole setup` to create one.')], ephemeral: true });
       }
-
-      var list = rrs.map(function(rr, i) {
-        var channel = rr.channelId ? '<#' + rr.channelId + '>' : 'Unknown';
-        var roleCount = rr.roles ? rr.roles.length : 0;
-        return '**' + (i + 1) + '.** ' + (rr.title || 'Untitled') + ' \u2022 ' + channel + ' \u2022 ' + roleCount + ' role(s) \u2022 `' + rr.messageId + '`';
-      }).join('\n');
-
-      var embed = modEmbed(emojis.list, 'Reaction Roles', [
-        { name: emojis.chart + ' Total', value: '' + rrs.length, inline: true },
-        { name: '\u200b', value: list, inline: false },
-      ], { color: COLORS.blurple });
-
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+      return interaction.reply({ embeds: [result.embed], ephemeral: true });
     }
 
     if (sub === 'delete') {
@@ -198,9 +111,9 @@ module.exports = {
       }
 
       try {
-        var ch = interaction.guild.channels.cache.get(found.channelId);
-        if (ch) {
-          var msg = await ch.messages.fetch(msgId);
+        var channel = interaction.guild.channels.cache.get(found.channelId);
+        if (channel) {
+          var msg = await channel.messages.fetch(msgId);
           if (msg) await msg.delete().catch(function() {});
         }
       } catch (e) {}
