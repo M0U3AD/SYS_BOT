@@ -39,6 +39,7 @@ function buildPanelEmbed(guild, data) {
   var pairs = data.pairs || [];
   var channel = data.channelId ? '<#' + data.channelId + '>' : 'Not set';
   var title = data.title || 'Select Your Roles';
+  var message = data.message || 'Not set';
 
   var pairsList = 'No role pairs added yet.';
   if (pairs.length > 0) {
@@ -55,6 +56,7 @@ function buildPanelEmbed(guild, data) {
       { name: emojis.channel + ' Channel', value: channel, inline: true },
       { name: emojis.chart + ' Pairs', value: '' + pairs.length, inline: true },
       { name: '\u200b', value: '\u200b', inline: true },
+      { name: emojis.list + ' Message', value: message, inline: false },
       { name: emojis.list + ' Role Pairs', value: pairsList, inline: false },
     ],
     { color: COLORS.blurple }
@@ -68,6 +70,7 @@ function buildPanelButtons(hasPairs, hasChannel) {
     new ButtonBuilder().setCustomId('rr_set_channel').setLabel('Set Channel').setStyle(ButtonStyle.Primary).setEmoji(emojis.channel)
   );
   var row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('rr_set_message').setLabel('Set Message').setStyle(ButtonStyle.Primary).setEmoji(emojis.tag),
     new ButtonBuilder().setCustomId('rr_send').setLabel('Send Reaction Role').setStyle(ButtonStyle.Success).setEmoji(emojis.send).setDisabled(!hasPairs || !hasChannel),
     new ButtonBuilder().setCustomId('rr_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary).setEmoji(emojis.cross)
   );
@@ -79,7 +82,8 @@ function buildPreviewEmbed(data) {
   var roleLines = pairs.map(function(p) {
     return (p.emojiStr || p.emoji) + ' <@&' + p.roleId + '>';
   }).join('\n');
-  var description = 'Click the buttons below to **earn** or **remove** your roles.\n\n' + roleLines;
+  var description = data.message || 'Click the buttons below to **earn** or **remove** your roles.';
+  description += '\n\n' + roleLines;
   return new EmbedBuilder()
     .setColor(COLORS.blurple)
     .setTitle(data.title || 'Select Your Roles')
@@ -147,6 +151,7 @@ async function startSetup(source, client) {
     pairs: [],
     channelId: null,
     title: 'Select Your Roles',
+    message: '',
     guildId: guild.id,
     panelMessage: null,
     panelInteraction: typeof source.editReply === 'function' ? source : null,
@@ -179,7 +184,7 @@ async function showAddModal(interaction) {
   await interaction.showModal(modal);
 }
 
-function resolveEmojiInput(text, interaction) {
+async function resolveEmojiInput(text, interaction) {
   if (!text) return null;
   var animated = false;
   var match = text.match(/^<(?:(a):)?(\w{2,32}):(\d{17,19})>$/);
@@ -189,7 +194,15 @@ function resolveEmojiInput(text, interaction) {
   }
   var name = text.replace(/^:|:$/g, '').trim();
   if (name.length === 0) return null;
-  var guildEmoji = interaction.guild.emojis.cache.find(function(e) { return e.name.toLowerCase() === name.toLowerCase(); });
+  var emojiColl = interaction.guild.emojis;
+  if (!emojiColl) return null;
+  var guildEmoji = emojiColl.cache.find(function(e) { return e.name.toLowerCase() === name.toLowerCase(); });
+  if (!guildEmoji) {
+    try {
+      await emojiColl.fetch();
+      guildEmoji = emojiColl.cache.find(function(e) { return e.name.toLowerCase() === name.toLowerCase(); });
+    } catch (e) {}
+  }
   if (guildEmoji) {
     return { animated: guildEmoji.animated, name: guildEmoji.name, id: guildEmoji.id };
   }
@@ -239,7 +252,7 @@ async function submitPair(interaction) {
     return interaction.reply({ embeds: [errorEmbed('Role Too High', 'I cannot assign this role.')], ephemeral: true });
   }
 
-  var emoji = resolveEmojiInput(emojiText, interaction);
+  var emoji = await resolveEmojiInput(emojiText, interaction);
   if (!emoji) {
     return interaction.reply({ embeds: [errorEmbed('Invalid Emoji', 'Could not resolve **' + emojiText + '**. Use a unicode emoji, a server emoji name like `:name:`, or a custom emoji like `<:name:id>` or `<a:name:id>`.')], ephemeral: true });
   }
@@ -291,6 +304,29 @@ async function showChannelSelect(interaction) {
   return interaction.reply({ content: '**Select the channel:**', components: [channelRow], ephemeral: true });
 }
 
+async function showMessageModal(interaction) {
+  var data = getSetup(interaction.user.id);
+  if (!data) return interaction.reply({ embeds: [errorEmbed('Expired', 'Setup expired. Run the command again.')], ephemeral: true });
+
+  var modal = new ModalBuilder().setCustomId('rr_modal_message').setTitle('Set Reaction Role Message');
+  var titleInput = new TextInputBuilder().setCustomId('rr_title_input').setLabel('Embed title').setValue(data.title || 'Select Your Roles').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(256);
+  var messageInput = new TextInputBuilder().setCustomId('rr_message_input').setLabel('Embed message (role list is appended)').setValue(data.message || '').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(3900);
+  modal.addComponents(new ActionRowBuilder().addComponents(titleInput), new ActionRowBuilder().addComponents(messageInput));
+  await interaction.showModal(modal);
+}
+
+async function submitMessage(interaction) {
+  var data = getSetup(interaction.user.id);
+  if (!data) return interaction.reply({ embeds: [errorEmbed('Expired', 'Setup expired. Run the command again.')], ephemeral: true });
+
+  data.title = interaction.fields.getTextInputValue('rr_title_input').trim() || 'Select Your Roles';
+  data.message = interaction.fields.getTextInputValue('rr_message_input').trim();
+  saveSetup(data);
+
+  await interaction.reply({ embeds: [successEmbed('Message Set', emojis.tag + ' Title: **' + data.title + '**\n' + emojis.edit + ' Message set.')], ephemeral: true });
+  await editPanelMessage(interaction);
+}
+
 async function setChannel(interaction) {
   var data = getSetup(interaction.user.id);
   if (!data) return interaction.reply({ content: 'Setup expired. Run the command again.', ephemeral: true });
@@ -323,6 +359,7 @@ async function sendPanel(interaction) {
       messageId: sentMsg.id,
       channelId: targetChannel.id,
       title: data.title,
+      message: data.message,
       roles: data.pairs.map(function(p) {
         return { roleId: p.roleId, emoji: p.emoji, roleName: p.roleName };
       }),
@@ -373,11 +410,13 @@ async function handleInteraction(interaction) {
   if (id === 'rr_add_pair') return showAddModal(interaction);
   if (id === 'rr_remove_pair') return showRemoveSelect(interaction);
   if (id === 'rr_set_channel') return showChannelSelect(interaction);
+  if (id === 'rr_set_message') return showMessageModal(interaction);
   if (id === 'rr_send') return sendPanel(interaction);
   if (id === 'rr_cancel') return cancelSetup(interaction);
   if (interaction.isStringSelectMenu && interaction.isStringSelectMenu() && id === 'rr_select_remove') return removePairs(interaction);
   if (interaction.isChannelSelectMenu && interaction.isChannelSelectMenu() && id === 'rr_channel_select') return setChannel(interaction);
   if (interaction.isModalSubmit && interaction.isModalSubmit() && id === 'rr_modal_add') return submitPair(interaction);
+  if (interaction.isModalSubmit && interaction.isModalSubmit() && id === 'rr_modal_message') return submitMessage(interaction);
 }
 
 module.exports = {
