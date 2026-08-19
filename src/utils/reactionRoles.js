@@ -43,7 +43,7 @@ function buildPanelEmbed(guild, data) {
   var pairsList = 'No role pairs added yet.';
   if (pairs.length > 0) {
     pairsList = pairs.map(function(p, i) {
-      return '**' + (i + 1) + '.** ' + p.emoji + ' \u2192 <@&' + p.roleId + '>';
+      return '**' + (i + 1) + '.** ' + (p.emojiStr || p.emoji) + ' \u2192 <@&' + p.roleId + '>';
     }).join('\n');
   }
 
@@ -77,7 +77,7 @@ function buildPanelButtons(hasPairs, hasChannel) {
 function buildPreviewEmbed(data) {
   var pairs = data.pairs || [];
   var roleLines = pairs.map(function(p) {
-    return p.emoji + ' <@&' + p.roleId + '>';
+    return (p.emojiStr || p.emoji) + ' <@&' + p.roleId + '>';
   }).join('\n');
   var description = 'Click the buttons below to **earn** or **remove** your roles.\n\n' + roleLines;
   return new EmbedBuilder()
@@ -179,6 +179,32 @@ async function showAddModal(interaction) {
   await interaction.showModal(modal);
 }
 
+function resolveEmojiInput(text, interaction) {
+  if (!text) return null;
+  var animated = false;
+  var match = text.match(/^<(?:(a):)?(\w{2,32}):(\d{17,19})>$/);
+  if (match) {
+    animated = Boolean(match[1]);
+    return { animated: animated, name: match[2], id: match[3] };
+  }
+  var name = text.replace(/^:|:$/g, '').trim();
+  if (name.length === 0) return null;
+  var guildEmoji = interaction.guild.emojis.cache.find(function(e) { return e.name.toLowerCase() === name.toLowerCase(); });
+  if (guildEmoji) {
+    return { animated: guildEmoji.animated, name: guildEmoji.name, id: guildEmoji.id };
+  }
+  if (text.includes(':') || text.includes('<') || text.includes('>')) return null;
+  if (!/[^\x00-\x7F]/.test(text)) return null;
+  return text;
+}
+
+function emojiToString(emoji) {
+  if (typeof emoji === 'string') return emoji;
+  return emoji.animated
+    ? '<a:' + emoji.name + ':' + emoji.id + '>'
+    : '<' + emoji.name + ':' + emoji.id + '>';
+}
+
 async function submitPair(interaction) {
   var data = getSetup(interaction.user.id);
   if (!data) return interaction.reply({ embeds: [errorEmbed('Expired', 'Setup expired. Run the command again.')], ephemeral: true });
@@ -213,15 +239,21 @@ async function submitPair(interaction) {
     return interaction.reply({ embeds: [errorEmbed('Role Too High', 'I cannot assign this role.')], ephemeral: true });
   }
 
-  var duplicate = data.pairs.find(function(p) { return p.emoji === emojiText || p.roleId === roleId; });
+  var emoji = resolveEmojiInput(emojiText, interaction);
+  if (!emoji) {
+    return interaction.reply({ embeds: [errorEmbed('Invalid Emoji', 'Could not resolve **' + emojiText + '**. Use a unicode emoji, a server emoji name like `:name:`, or a custom emoji like `<:name:id>` or `<a:name:id>`.')], ephemeral: true });
+  }
+  var emojiStr = emojiToString(emoji);
+
+  var duplicate = data.pairs.find(function(p) { return (p.emojiStr || p.emoji) === emojiStr || p.roleId === roleId; });
   if (duplicate) {
     return interaction.reply({ embeds: [errorEmbed('Duplicate', 'This emoji or role is already in the list.')], ephemeral: true });
   }
 
-  data.pairs.push({ roleId: roleId, roleName: roleName, emoji: emojiText });
+  data.pairs.push({ roleId: roleId, roleName: roleName, emoji: emoji, emojiStr: emojiStr });
   saveSetup(data);
 
-  await interaction.reply({ embeds: [successEmbed('Pair Added', emojis.check + ' Added **' + emojiText + '** \u2192 <@&' + roleId + '> (' + data.pairs.length + ' total pair(s))')], ephemeral: true });
+  await interaction.reply({ embeds: [successEmbed('Pair Added', emojis.check + ' Added **' + emojiStr + '** \u2192 <@&' + roleId + '> (' + data.pairs.length + ' total pair(s))')], ephemeral: true });
   await editPanelMessage(interaction);
 }
 
@@ -232,7 +264,7 @@ async function showRemoveSelect(interaction) {
 
   var selectMenu = new StringSelectMenuBuilder().setCustomId('rr_select_remove').setPlaceholder('Select pairs to remove').setMinValues(1).setMaxValues(data.pairs.length);
   data.pairs.forEach(function(p, idx) {
-    selectMenu.addOptions({ label: p.roleName || 'Role ' + (idx + 1), description: p.emoji + ' \u2192 Role', value: '' + idx });
+    selectMenu.addOptions({ label: p.roleName || 'Role ' + (idx + 1), description: (p.emojiStr || p.emoji) + ' \u2192 Role', value: '' + idx });
   });
   var selectRow = new ActionRowBuilder().addComponents(selectMenu);
   return interaction.reply({ content: '**Select pairs to remove:**', components: [selectRow], ephemeral: true });
