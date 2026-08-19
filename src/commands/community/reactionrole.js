@@ -71,17 +71,19 @@ async function startSetup(source, client) {
   var guild = source.guild;
   var userId = source.member ? source.member.id : source.user.id;
 
-  var data = { pairs: [], channelId: null, title: 'Select Your Roles', guildId: guild.id };
-  initSetup(userId, data);
-
-  var embed = buildPanelEmbed(guild, data);
+  var embed = buildPanelEmbed(guild, { pairs: [], channelId: null, title: 'Select Your Roles' });
   var buttons = buildPanelButtons(false, false);
 
+  var msg;
   if (source.replied || source.deferred) {
     await source.editReply({ embeds: [embed], components: buttons });
+    msg = await source.fetchReply();
   } else {
-    await source.reply({ embeds: [embed], components: buttons });
+    msg = await source.reply({ embeds: [embed], components: buttons });
   }
+
+  var data = { pairs: [], channelId: null, title: 'Select Your Roles', guildId: guild.id, panelMsgId: msg.id, panelChannelId: msg.channelId };
+  initSetup(userId, data);
 }
 
 module.exports = {

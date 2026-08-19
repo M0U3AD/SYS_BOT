@@ -44,14 +44,20 @@ function buildPanelButtons(hasPairs, hasChannel) {
   return [row1, row2];
 }
 
-async function refreshPanel(interaction, data) {
-  var guild = interaction.guild;
-  var embed = buildPanelEmbed(guild, data);
-  var buttons = buildPanelButtons(data.pairs.length > 0, !!data.channelId);
-  if (interaction.replied || interaction.deferred) {
-    await interaction.editReply({ embeds: [embed], components: buttons }).catch(function() {});
-  } else {
-    await interaction.update({ embeds: [embed], components: buttons }).catch(function() {});
+async function editPanelMessage(interaction) {
+  var data = pendingSetups.get(interaction.user.id);
+  if (!data || !data.panelMsgId || !data.panelChannelId) return;
+  var guild = interaction.client.guilds.cache.get(data.guildId);
+  if (!guild) return;
+  var channel = guild.channels.cache.get(data.panelChannelId);
+  if (!channel || !channel.isTextBased()) return;
+  try {
+    var msg = await channel.messages.fetch(data.panelMsgId);
+    var embed = buildPanelEmbed(guild, data);
+    var buttons = buildPanelButtons(data.pairs.length > 0, !!data.channelId);
+    await msg.edit({ embeds: [embed], components: buttons });
+  } catch (err) {
+    console.error('Panel refresh error:', err.message);
   }
 }
 
@@ -208,9 +214,7 @@ async function handleRRModalSubmit(interaction) {
 
   await interaction.reply({ embeds: [successEmbed('Pair Added', emojis.check + ' Added **' + emojiText + '** \u2192 <@&' + roleId + '> (' + data.pairs.length + ' total pair(s))')], ephemeral: true });
 
-  var embed = buildPanelEmbed(interaction.guild, data);
-  var buttons = buildPanelButtons(data.pairs.length > 0, !!data.channelId);
-  await interaction.message.edit({ embeds: [embed], components: buttons }).catch(function() {});
+  await editPanelMessage(interaction);
 }
 
 async function handleRRRemovePair(interaction) {
@@ -236,9 +240,7 @@ async function handleRRSelectRemove(interaction) {
 
   await interaction.reply({ embeds: [successEmbed('Pairs Removed', emojis.trash + ' Removed **' + indices.length + '** pair(s). (' + data.pairs.length + ' remaining)')], ephemeral: true });
 
-  var embed = buildPanelEmbed(interaction.guild, data);
-  var buttons = buildPanelButtons(data.pairs.length > 0, !!data.channelId);
-  await interaction.message.edit({ embeds: [embed], components: buttons }).catch(function() {});
+  await editPanelMessage(interaction);
 }
 
 async function handleRRSetChannel(interaction) {
@@ -259,9 +261,7 @@ async function handleRRChannelSelect(interaction) {
 
   await interaction.reply({ embeds: [successEmbed('Channel Set', emojis.channel + ' Channel set to <#' + interaction.values[0] + '>')], ephemeral: true });
 
-  var embed = buildPanelEmbed(interaction.guild, data);
-  var buttons = buildPanelButtons(data.pairs.length > 0, !!data.channelId);
-  await interaction.message.edit({ embeds: [embed], components: buttons }).catch(function() {});
+  await editPanelMessage(interaction);
 }
 
 async function handleRRSend(interaction) {
