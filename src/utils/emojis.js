@@ -70,6 +70,7 @@ const emojis = {
   preview: '👁️‍🗨️',
   send: '📨',
   select: '🔘',
+  image: '🖼️',
 
   // Status
   online: '🟢',

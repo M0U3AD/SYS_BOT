@@ -40,6 +40,7 @@ function buildPanelEmbed(guild, data) {
   var channel = data.channelId ? '<#' + data.channelId + '>' : 'Not set';
   var title = data.title || 'Select Your Roles';
   var message = data.message || 'Not set';
+  var image = data.image || 'None';
 
   var pairsList = 'No role pairs added yet.';
   if (pairs.length > 0) {
@@ -55,7 +56,7 @@ function buildPanelEmbed(guild, data) {
       { name: emojis.tag + ' Title', value: title, inline: true },
       { name: emojis.channel + ' Channel', value: channel, inline: true },
       { name: emojis.chart + ' Pairs', value: '' + pairs.length, inline: true },
-      { name: '\u200b', value: '\u200b', inline: true },
+      { name: emojis.image + ' Image', value: image, inline: true },
       { name: emojis.list + ' Message', value: message, inline: false },
       { name: emojis.list + ' Role Pairs', value: pairsList, inline: false },
     ],
@@ -71,6 +72,7 @@ function buildPanelButtons(hasPairs, hasChannel) {
   );
   var row2 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('rr_set_message').setLabel('Set Message').setStyle(ButtonStyle.Primary).setEmoji(emojis.tag),
+    new ButtonBuilder().setCustomId('rr_set_image').setLabel('Set Image').setStyle(ButtonStyle.Primary).setEmoji(emojis.image),
     new ButtonBuilder().setCustomId('rr_send').setLabel('Send Reaction Role').setStyle(ButtonStyle.Success).setEmoji(emojis.send).setDisabled(!hasPairs || !hasChannel),
     new ButtonBuilder().setCustomId('rr_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary).setEmoji(emojis.cross)
   );
@@ -84,12 +86,14 @@ function buildPreviewEmbed(data) {
   }).join('\n');
   var description = data.message || 'Click the buttons below to **earn** or **remove** your roles.';
   description += '\n\n' + roleLines;
-  return new EmbedBuilder()
+  var embed = new EmbedBuilder()
     .setColor(COLORS.blurple)
     .setTitle(data.title || 'Select Your Roles')
     .setDescription(description)
     .setTimestamp()
     .setFooter({ text: 'SYS-F1ex \u2022 Reaction Roles' });
+  if (data.image) embed.setImage(data.image);
+  return embed;
 }
 
 function buildPreviewButtons(data) {
@@ -152,6 +156,7 @@ async function startSetup(source, client) {
     channelId: null,
     title: 'Select Your Roles',
     message: '',
+    image: '',
     guildId: guild.id,
     panelMessage: null,
     panelInteraction: typeof source.editReply === 'function' ? source : null,
@@ -338,6 +343,32 @@ async function setChannel(interaction) {
   await editPanelMessage(interaction);
 }
 
+async function showImageModal(interaction) {
+  var data = getSetup(interaction.user.id);
+  if (!data) return interaction.reply({ embeds: [errorEmbed('Expired', 'Setup expired. Run the command again.')], ephemeral: true });
+
+  var modal = new ModalBuilder().setCustomId('rr_modal_image').setTitle('Set Reaction Role Image');
+  var imageInput = new TextInputBuilder().setCustomId('rr_image_input').setLabel('Image URL (optional)').setPlaceholder('https://example.com/image.png').setValue(data.image || '').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(1024);
+  modal.addComponents(new ActionRowBuilder().addComponents(imageInput));
+  await interaction.showModal(modal);
+}
+
+async function submitImage(interaction) {
+  var data = getSetup(interaction.user.id);
+  if (!data) return interaction.reply({ embeds: [errorEmbed('Expired', 'Setup expired. Run the command again.')], ephemeral: true });
+
+  var imageValue = interaction.fields.getTextInputValue('rr_image_input').trim();
+  if (imageValue && !/^https?:\/\//i.test(imageValue)) {
+    return interaction.reply({ embeds: [errorEmbed('Invalid URL', 'Please provide a valid image URL starting with `http://` or `https://`.')], ephemeral: true });
+  }
+
+  data.image = imageValue;
+  saveSetup(data);
+
+  await interaction.reply({ embeds: [successEmbed('Image Set', emojis.image + ' Image ' + (imageValue ? 'set to **' + imageValue + '**.' : '**removed**.'))], ephemeral: true });
+  await editPanelMessage(interaction);
+}
+
 async function sendPanel(interaction) {
   var data = getSetup(interaction.user.id);
   if (!data) return interaction.reply({ embeds: [errorEmbed('Expired', 'Setup expired. Run the command again.')], ephemeral: true });
@@ -360,6 +391,7 @@ async function sendPanel(interaction) {
       channelId: targetChannel.id,
       title: data.title,
       message: data.message,
+      image: data.image || '',
       roles: data.pairs.map(function(p) {
         return { roleId: p.roleId, emoji: p.emoji, roleName: p.roleName };
       }),
@@ -411,12 +443,14 @@ async function handleInteraction(interaction) {
   if (id === 'rr_remove_pair') return showRemoveSelect(interaction);
   if (id === 'rr_set_channel') return showChannelSelect(interaction);
   if (id === 'rr_set_message') return showMessageModal(interaction);
+  if (id === 'rr_set_image') return showImageModal(interaction);
   if (id === 'rr_send') return sendPanel(interaction);
   if (id === 'rr_cancel') return cancelSetup(interaction);
   if (interaction.isStringSelectMenu && interaction.isStringSelectMenu() && id === 'rr_select_remove') return removePairs(interaction);
   if (interaction.isChannelSelectMenu && interaction.isChannelSelectMenu() && id === 'rr_channel_select') return setChannel(interaction);
   if (interaction.isModalSubmit && interaction.isModalSubmit() && id === 'rr_modal_add') return submitPair(interaction);
   if (interaction.isModalSubmit && interaction.isModalSubmit() && id === 'rr_modal_message') return submitMessage(interaction);
+  if (interaction.isModalSubmit && interaction.isModalSubmit() && id === 'rr_modal_image') return submitImage(interaction);
 }
 
 module.exports = {

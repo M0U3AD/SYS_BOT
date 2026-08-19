@@ -35,6 +35,9 @@ const guildSchema = new mongoose.Schema({
   reactionRoles: [{
     messageId: String,
     channelId: String,
+    title: String,
+    message: String,
+    image: String,
     roles: [{
       emoji: String,
       roleId: String,
