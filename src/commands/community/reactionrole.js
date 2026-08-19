@@ -18,7 +18,7 @@ function buildPanelEmbed(guild, data) {
 
   return dashboardEmbed(
     emojis.role + ' Reaction Role Setup',
-    '',
+    '\u200b',
     [
       { name: emojis.tag + ' Title', value: title, inline: true },
       { name: emojis.channel + ' Channel', value: channel, inline: true },
