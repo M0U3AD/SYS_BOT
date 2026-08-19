@@ -119,6 +119,10 @@ async function editPanelMessage(interaction) {
   try {
     var embed = buildPanelEmbed(guild, data);
     var buttons = buildPanelButtons(data.pairs.length > 0, !!data.channelId);
+    if (data.panelInteraction && data.panelInteraction.editReply && data.panelInteraction.ephemeral) {
+      await data.panelInteraction.editReply({ embeds: [embed], components: buttons });
+      return;
+    }
     if (data.panelMessage && data.panelMessage.edit) {
       await data.panelMessage.edit({ embeds: [embed], components: buttons });
       return;
@@ -138,7 +142,15 @@ async function startSetup(source, client) {
   var guild = source.guild;
   var userId = source.member ? source.member.id : source.user.id;
 
-  var data = { userId: userId, pairs: [], channelId: null, title: 'Select Your Roles', guildId: guild.id, panelMessage: null };
+  var data = {
+    userId: userId,
+    pairs: [],
+    channelId: null,
+    title: 'Select Your Roles',
+    guildId: guild.id,
+    panelMessage: null,
+    panelInteraction: typeof source.editReply === 'function' ? source : null,
+  };
   saveSetup(data);
 
   var embed = buildPanelEmbed(guild, data);
