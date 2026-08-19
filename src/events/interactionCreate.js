@@ -46,16 +46,22 @@ function buildPanelButtons(hasPairs, hasChannel) {
 
 async function editPanelMessage(interaction) {
   var data = pendingSetups.get(interaction.user.id);
-  if (!data || !data.panelMsgId || !data.panelChannelId) return;
+  if (!data) return;
   var guild = interaction.client.guilds.cache.get(data.guildId);
   if (!guild) return;
-  var channel = guild.channels.cache.get(data.panelChannelId);
-  if (!channel || !channel.isTextBased()) return;
   try {
-    var msg = await channel.messages.fetch(data.panelMsgId);
     var embed = buildPanelEmbed(guild, data);
     var buttons = buildPanelButtons(data.pairs.length > 0, !!data.channelId);
-    await msg.edit({ embeds: [embed], components: buttons });
+    if (data.panelMessage && data.panelMessage.edit) {
+      await data.panelMessage.edit({ embeds: [embed], components: buttons });
+      return;
+    }
+    if (data.panelMsgId && data.panelChannelId) {
+      var channel = guild.channels.cache.get(data.panelChannelId);
+      if (!channel || !channel.isTextBased()) return;
+      var msg = await channel.messages.fetch(data.panelMsgId);
+      await msg.edit({ embeds: [embed], components: buttons });
+    }
   } catch (err) {
     console.error('Panel refresh error:', err.message);
   }

@@ -82,7 +82,7 @@ async function startSetup(source, client) {
     msg = await source.reply({ embeds: [embed], components: buttons });
   }
 
-  var data = { pairs: [], channelId: null, title: 'Select Your Roles', guildId: guild.id, panelMsgId: msg.id, panelChannelId: msg.channelId };
+  var data = { pairs: [], channelId: null, title: 'Select Your Roles', guildId: guild.id, panelMessage: msg, panelMsgId: msg.id, panelChannelId: msg.channelId };
   initSetup(userId, data);
 }
 
