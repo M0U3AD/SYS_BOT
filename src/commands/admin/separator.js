@@ -48,7 +48,10 @@ module.exports = {
       return message.reply({ embeds: [errorEmbed('Access Denied', 'You need the `Manage Channels` permission.')] });
     }
 
-    const sub = (args.shift() || '').toLowerCase();
+    const first = (args[0] || '').toLowerCase();
+    const known = ['add', 'remove', 'list'];
+    const sub = known.includes(first) ? args.shift().toLowerCase() : 'add';
+
     const config = await getGuildConfig(message.guild.id);
     const separators = config.separators || [];
 
@@ -57,10 +60,10 @@ module.exports = {
       const url = args[1];
 
       if (!channel || !TEXT_CHANNEL_TYPES.includes(channel.type)) {
-        return message.reply({ embeds: [errorEmbed('Invalid Usage', 'Mention a **text channel**: `!separator add <#channel> <media-url>`')] });
+        return message.reply({ embeds: [errorEmbed('Invalid Usage', 'Mention a **text channel** first: `!separator <#channel> <media-url>`')] });
       }
       if (!isValidMediaUrl(url)) {
-        return message.reply({ embeds: [errorEmbed('Invalid URL', 'Provide a direct media/GIF link starting with `https://`')] });
+        return message.reply({ embeds: [errorEmbed('Invalid URL', 'Provide a **direct** media/GIF link starting with `https://`\n(Right-click the GIF/image → **Copy image address**, then paste it here.)')] });
       }
 
       const existing = separators.find(s => s.channelId === channel.id);
