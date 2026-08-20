@@ -45,6 +45,20 @@ async function registerSlashCommands(client) {
       { body: commands }
     );
     console.log(`Successfully registered ${commands.length} slash commands.`);
+
+    // Remove any legacy/stale commands that are no longer in the folders
+    const registered = new Set(commands.map(c => c.name));
+    const existing = await rest.get(Routes.applicationCommands(process.env.CLIENT_ID));
+    let removed = 0;
+    for (const cmd of existing) {
+      if (!registered.has(cmd.name)) {
+        await rest.delete(Routes.applicationCommand(process.env.CLIENT_ID, cmd.id));
+        removed++;
+      }
+    }
+    if (removed > 0) {
+      console.log(`Removed ${removed} stale slash command(s).`);
+    }
   } catch (error) {
     console.error('Failed to register slash commands:', error);
   }
