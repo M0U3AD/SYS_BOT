@@ -158,6 +158,12 @@ const guildSchema = new mongoose.Schema({
     default: {},
   },
 
+  // Message Separators (media divider posted after each message)
+  separators: [{
+    channelId: { type: String },
+    mediaUrl: { type: String },
+  }],
+
   // Applications
   applications: {
     enabled: { type: Boolean, default: false },
