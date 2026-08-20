@@ -1,4 +1,4 @@
-const { handleChannelDelete } = require('../utils/tempVoice');
+const { handleChannelDelete } = require('../../utils/tempVoice');
 
 module.exports = {
   name: 'channelDelete',
