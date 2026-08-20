@@ -2,6 +2,7 @@
   "prefix": "!",
   "embedColor": "#5865F2",
   "ownerIds": [],
+  "adminIds": [],
   "modLogChannelId": "",
   "muteRoleId": "",
   "welcomeChannelId": ""

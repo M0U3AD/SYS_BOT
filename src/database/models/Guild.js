@@ -54,6 +54,17 @@ const guildSchema = new mongoose.Schema({
     mode: { type: String, enum: ['button', 'captcha'], default: 'button' },
   },
 
+  // Temporary Voice Channels
+  tempVoice: {
+    enabled: { type: Boolean, default: false },
+    triggerChannelId: { type: String, default: '' },
+    categoryId: { type: String, default: '' },
+    modRoleIds: { type: [String], default: [] },
+    createModChannel: { type: Boolean, default: true },
+    channelNameTemplate: { type: String, default: '{user}\'s Channel' },
+    modChannelName: { type: String, default: 'mod-{user}' },
+  },
+
   // Moderation
   moderation: {
     automod: {

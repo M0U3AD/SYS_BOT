@@ -3,6 +3,7 @@ const session = require('express-session');
 const cors = require('cors');
 const path = require('path');
 const authRoutes = require('./routes/auth');
+const adminRoutes = require('./routes/admin');
 const botRoutes = require('./routes/bot');
 const serversRoutes = require('./routes/servers');
 const settingsRoutes = require('./routes/settings');
@@ -30,6 +31,7 @@ module.exports = function createServer(client) {
   }));
 
   app.use('/api/auth', authRoutes);
+  app.use('/api/admin', adminRoutes(client));
   app.use('/api/bot', botRoutes(client));
   app.use('/api/servers', serversRoutes(client));
   app.use('/api/settings', settingsRoutes);
@@ -37,6 +39,11 @@ module.exports = function createServer(client) {
 
   const dashboardPath = path.join(__dirname, '..', '..', 'dashboard');
   app.use(express.static(dashboardPath));
+
+  app.get('/admin', (req, res) => {
+    res.sendFile(path.join(dashboardPath, 'admin.html'));
+  });
+
   app.use((req, res) => {
     if (!req.path.startsWith('/api')) {
       res.sendFile(path.join(dashboardPath, 'index.html'));

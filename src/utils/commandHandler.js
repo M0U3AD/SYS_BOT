@@ -12,7 +12,6 @@ function loadCommands(client) {
     path.join(__dirname, '..', 'commands', 'admin'),
     path.join(__dirname, '..', 'commands', 'community'),
     path.join(__dirname, '..', 'commands', 'support'),
-    path.join(__dirname, '..', 'commands', 'gaming'),
     path.join(__dirname, '..', 'commands', 'engagement'),
     path.join(__dirname, '..', 'commands', 'notifications'),
   ];

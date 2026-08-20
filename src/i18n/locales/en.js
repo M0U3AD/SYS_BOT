@@ -204,17 +204,6 @@ const en = {
   GIVEAWAY_ENDED: '🎉 Giveaway Ended',
   POLL_TITLE: '📊 Poll',
 
-  // Broadcast
-  BROADCAST_TITLE: '📢 Server Broadcast',
-  BROADCAST_CONFIRM_TITLE: 'Broadcast Confirmation',
-  BROADCAST_CONFIRM_DESC: (msg) =>
-    'You are about to send a DM to **all members** of this server.\n\n**Message:**\n' + msg,
-  BROADCAST_CANCELLED: 'Broadcast was cancelled.',
-  BROADCAST_COMPLETE: 'Broadcast Complete',
-  BROADCAST_SENT: (n) => '' + n,
-  BROADCAST_FAILED: (n) => '' + n,
-  BROADCAST_BOTS: (n) => '' + n,
-
   // Errors
   ERR_PERMISSION: 'You do not have permission to use this command.',
   ERR_DISABLED: 'This feature is not enabled.',

@@ -37,7 +37,7 @@ module.exports = function (client) {
 function getCommandCategory(name) {
   const moderation = ['kick', 'ban', 'mute', 'unmute', 'warn', 'purge'];
   const storeCmds = ['addproduct', 'products', 'deleteproduct', 'redeem', 'regenerate'];
-  const admin = ['say', 'announce', 'dm'];
+  const admin = ['say', 'announce', 'dm', 'tempvoice', 'separator', 'roles'];
   if (moderation.includes(name)) return 'Moderation';
   if (storeCmds.includes(name)) return 'Store';
   if (admin.includes(name)) return 'Admin';

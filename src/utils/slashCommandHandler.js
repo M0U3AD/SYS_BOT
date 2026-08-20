@@ -9,7 +9,6 @@ const folders = [
   'store',
   'community',
   'support',
-  'gaming',
   'engagement',
   'notifications',
 ];

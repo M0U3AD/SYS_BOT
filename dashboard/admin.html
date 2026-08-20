@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SYS-F1ex Admin Panel</title>
+<style>
+  :root {
+    --bg: #0f1218;
+    --panel: #1a1f2b;
+    --panel-2: #232936;
+    --border: #2d3444;
+    --text: #e6e9f0;
+    --muted: #8b93a7;
+    --accent: #5865f2;
+    --green: #57f287;
+    --red: #ed4245;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .login-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 36px 32px;
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+  }
+  .login-card h1 { font-size: 22px; margin-bottom: 4px; }
+  .login-card p { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+  .login-card input {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 15px;
+    margin-bottom: 12px;
+    outline: none;
+  }
+  .login-card input:focus { border-color: var(--accent); }
+  .btn {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  .btn:hover { opacity: .85; }
+  .btn.secondary { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); }
+  .error { color: var(--red); font-size: 13px; margin-top: 12px; min-height: 18px; }
+
+  .shell { max-width: 1080px; margin: 0 auto; padding: 24px 20px 60px; }
+  .topbar {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 18px; margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .topbar img.avatar { width: 46px; height: 46px; border-radius: 50%; background: var(--panel-2); }
+  .topbar .t-title { font-weight: 700; font-size: 17px; }
+  .topbar .t-sub { color: var(--muted); font-size: 13px; }
+  .topbar .spacer { flex: 1; }
+  .topbar .badge {
+    background: var(--green); color: #0f1218; font-size: 12px; font-weight: 700;
+    padding: 4px 10px; border-radius: 999px;
+  }
+  .btn.small { width: auto; padding: 8px 14px; font-size: 13px; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px;
+  }
+  .card .num { font-size: 24px; font-weight: 700; }
+  .card .lbl { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+  .section-title { font-size: 16px; font-weight: 700; margin: 24px 0 12px; display: flex; align-items: center; gap: 8px; }
+  .server-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+  .server {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px; cursor: pointer;
+    transition: border-color .15s;
+  }
+  .server:hover { border-color: var(--accent); }
+  .server .head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .server img { width: 40px; height: 40px; border-radius: 50%; background: var(--panel-2); }
+  .server .s-name { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .server .s-id { color: var(--muted); font-size: 12px; }
+  .server .row { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-top: 5px; }
+  .server .row b { color: var(--text); }
+
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.65);
+    display: none; align-items: center; justify-content: center; padding: 20px; z-index: 50;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    width: 100%; max-width: 620px; max-height: 85vh; overflow: auto; padding: 24px;
+  }
+  .modal h2 { font-size: 18px; margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
+  .modal h2 img { width: 34px; height: 34px; border-radius: 50%; background: var(--panel-2); }
+  .meta { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+  .meta b { color: var(--text); }
+  .modal .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .modal .col { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .modal .col h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+  .modal ul { list-style: none; font-size: 13px; max-height: 220px; overflow: auto; }
+  .modal li { padding: 3px 0; display: flex; justify-content: space-between; gap: 8px; color: var(--muted); }
+  .modal li b { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .modal .close { float: right; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+  .muted { color: var(--muted); }
+  @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="loginView" class="login-wrap">
+    <div class="login-card">
+      <div style="font-size:40px;margin-bottom:12px">🛡️</div>
+      <h1>Admin Panel</h1>
+      <p>Restricted access — enter the admin code to continue.</p>
+      <form id="loginForm">
+        <input type="password" id="codeInput" placeholder="Admin code" autocomplete="current-password" />
+        <button type="submit" class="btn">Access Panel</button>
+      </form>
+      <div id="loginError" class="error"></div>
+    </div>
+  </div>
+
+  <!-- PANEL -->
+  <div id="panelView" class="shell" style="display:none">
+    <div class="topbar">
+      <img id="botAvatar" class="avatar" alt="" />
+      <div>
+        <div class="t-title" id="botTag">—</div>
+        <div class="t-sub" id="botId"></div>
+      </div>
+      <span class="badge">ADMIN</span>
+      <div class="spacer"></div>
+      <button class="btn small secondary" id="logoutBtn">Logout</button>
+    </div>
+
+    <div class="cards" id="statCards"></div>
+
+    <div class="section-title">🌐 Servers the bot is in</div>
+    <div class="server-grid" id="serverGrid"></div>
+    <div id="serverEmpty" class="muted" style="margin-top:8px"></div>
+  </div>
+
+  <!-- SERVER DETAIL MODAL -->
+  <div class="overlay" id="modal">
+    <div class="modal">
+      <button class="close" id="modalClose">Close</button>
+      <h2 id="mName">—</h2>
+      <div class="meta" id="mMeta"></div>
+      <div class="grid2">
+        <div class="col"><h3>Channels</h3><ul id="mChannels"></ul></div>
+        <div class="col"><h3>Roles</h3><ul id="mRoles"></ul></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  async function api(url, opts) {
+    const res = await fetch(url, {
+      credentials: 'same-origin',
+      headers: opts && opts.body ? { 'Content-Type': 'application/json' } : {},
+      ...opts,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Request failed');
+    return data;
+  }
+
+  async function checkStatus() {
+    try {
+      await api('/api/admin/status');
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  $('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const code = $('codeInput').value;
+    $('loginError').textContent = '';
+    try {
+      await api('/api/admin/login', { method: 'POST', body: JSON.stringify({ code }) });
+      await loadPanel();
+    } catch (err) {
+      $('loginError').textContent = err.message;
+    }
+  });
+
+  $('logoutBtn').addEventListener('click', async () => {
+    await api('/api/admin/logout', { method: 'POST' });
+    $('panelView').style.display = 'none';
+    $('loginView').style.display = 'flex';
+    $('codeInput').value = '';
+  });
+
+  function fmtTime(ts) {
+    return new Date(ts).toLocaleString();
+  }
+
+  async function loadPanel() {
+    const info = await api('/api/admin/info');
+
+    $('botAvatar').src = info.bot.avatar;
+    $('botTag').textContent = info.bot.tag;
+    $('botId').textContent = 'ID: ' + info.bot.id;
+
+    const memMB = (info.memory.rss / 1024 / 1024).toFixed(0);
+    const stats = [
+      { num: info.totals.servers, lbl: 'Servers' },
+      { num: info.totals.members.toLocaleString(), lbl: 'Members' },
+      { num: info.totals.channels.toLocaleString(), lbl: 'Channels' },
+      { num: info.bot.ping + 'ms', lbl: 'WebSocket Ping' },
+      { num: info.bot.uptime, lbl: 'Uptime' },
+      { num: memMB + ' MB', lbl: 'Memory' },
+      { num: info.totals.commandsLoaded, lbl: 'Commands' },
+      { num: info.stats.commandsToday, lbl: 'Commands Today' },
+    ];
+    $('statCards').innerHTML = stats.map(s =>
+      `<div class="card"><div class="num">${s.num}</div><div class="lbl">${s.lbl}</div></div>`
+    ).join('');
+
+    const grid = $('serverGrid');
+    if (!info.guilds.length) {
+      grid.innerHTML = '';
+      $('serverEmpty').textContent = 'The bot is not in any server yet.';
+    } else {
+      $('serverEmpty').textContent = '';
+      grid.innerHTML = info.guilds.map(g => {
+        const icon = g.icon
+          ? `<img src="${g.icon}" alt="" />`
+          : '<div style="width:40px;height:40px;border-radius:50%;background:var(--panel-2);display:inline-flex;align-items:center;justify-content:center">💬</div>';
+        return `<div class="server" data-id="${g.id}">
+          <div class="head">${icon}<div>
+            <div class="s-name" title="${g.name}">${g.name}</div>
+            <div class="s-id">${g.id}</div>
+          </div></div>
+          <div class="row"><span>Members</span><b>${g.memberCount.toLocaleString()}</b></div>
+          <div class="row"><span>Channels / Roles</span><b>${g.channelCount} / ${g.roleCount}</b></div>
+          <div class="row"><span>Emojis / Boost Lv</span><b>${g.emojiCount} / ${g.boostLevel}</b></div>
+        </div>`;
+      }).join('');
+
+      grid.querySelectorAll('.server').forEach(el => {
+        el.addEventListener('click', () => openGuild(el.dataset.id));
+      });
+    }
+
+    $('loginView').style.display = 'none';
+    $('panelView').style.display = 'block';
+  }
+
+  async function openGuild(id) {
+    const g = await api('/api/admin/guild/' + id);
+    $('mName').innerHTML = g.icon
+      ? `<img src="${g.icon}" alt="" /> ${g.name}`
+      : `${g.name}`;
+    $('mMeta').innerHTML =
+      `ID <b>${g.id}</b> · Owner <b>${g.ownerTag || g.ownerId}</b> · ` +
+      `Members <b>${g.memberCount.toLocaleString()}</b> · Created <b>${fmtTime(g.createdAt)}</b>`;
+    $('mChannels').innerHTML = g.channels
+      .map(c => `<li><b>#${c.name}</b><span>${c.type === 2 ? 'voice' : c.type === 4 ? 'category' : 'text'}</span></li>`)
+      .join('') || '<li>No channels</li>';
+    $('mRoles').innerHTML = g.roles
+      .map(r => `<li><b style="color:${r.color === '#000000' ? 'var(--text)' : r.color}">&#9679; ${r.name}</b><span>${r.id}</span></li>`)
+      .join('') || '<li>No roles</li>';
+    $('modal').classList.add('open');
+  }
+
+  $('modalClose').addEventListener('click', () => $('modal').classList.remove('open'));
+  $('modal').addEventListener('click', (e) => { if (e.target === $('modal')) $('modal').classList.remove('open'); });
+
+  (async () => {
+    if (await checkStatus()) {
+      try { await loadPanel(); return; } catch (e) {}
+    }
+    $('loginView').style.display = 'flex';
+    $('panelView').style.display = 'none';
+  })();
+</script>
+</body>
+</html>

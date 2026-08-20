@@ -193,16 +193,6 @@ const es = {
   GIVEAWAY_ENDED: '🎉 Sorteo Finalizado',
   POLL_TITLE: '📊 Encuesta',
 
-  BROADCAST_TITLE: '📢 Transmisión del Servidor',
-  BROADCAST_CONFIRM_TITLE: 'Confirmación de Transmisión',
-  BROADCAST_CONFIRM_DESC: (msg) =>
-    'Estás a punto de enviar un DM a **todos los miembros** de este servidor.\n\n**Mensaje:**\n' + msg,
-  BROADCAST_CANCELLED: 'La transmisión fue cancelada.',
-  BROADCAST_COMPLETE: 'Transmisión Completa',
-  BROADCAST_SENT: (n) => '' + n,
-  BROADCAST_FAILED: (n) => '' + n,
-  BROADCAST_BOTS: (n) => '' + n,
-
   ERR_PERMISSION: 'No tienes permiso para usar este comando.',
   ERR_DISABLED: 'Esta función no está habilitada.',
   ERR_NOT_FOUND: 'No encontrado.',

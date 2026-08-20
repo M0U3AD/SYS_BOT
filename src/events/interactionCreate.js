@@ -32,7 +32,6 @@ module.exports = {
       if (interaction.customId === 'ticket_claim') { return handleTicketClaim(interaction, client); }
       if (interaction.customId.startsWith('app_accept_') || interaction.customId.startsWith('app_deny_')) { return handleApplicationReview(interaction, client); }
       if (interaction.customId.startsWith('giveaway_')) { return handleGiveaway(interaction); }
-      if (interaction.customId.startsWith('broadcast_confirm_') || interaction.customId.startsWith('broadcast_cancel_')) { return; }
       if (interaction.customId.startsWith('mod_confirm_') || interaction.customId.startsWith('mod_cancel_')) { return; }
       return;
     }
