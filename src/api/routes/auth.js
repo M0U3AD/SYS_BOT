@@ -4,12 +4,7 @@ const router = express.Router();
 const DISCORD_API = 'https://discord.com/api';
 const SCOPES = 'identify guilds';
 
-// Public URL of the dashboard frontend (must match the OAuth redirect
-// registered in the Discord Developer Portal, without a trailing slash).
 const PUBLIC_URL = (process.env.FRONTEND_URL || process.env.DASHBOARD_URL || '').replace(/\/+$/, '');
-
-// The dashboard uses its own Discord application (separate from the bot).
-// OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET fall back to CLIENT_ID / CLIENT_SECRET.
 const OAUTH_CLIENT_ID = process.env.OAUTH_CLIENT_ID || process.env.CLIENT_ID;
 const OAUTH_CLIENT_SECRET = process.env.OAUTH_CLIENT_SECRET || process.env.CLIENT_SECRET;
 
@@ -17,7 +12,17 @@ function callbackUrl() {
   return `${PUBLIC_URL}/api/auth/callback`;
 }
 
-router.get('/login', (req, res) => {
+router.get('/diag', (_req, res) => {
+  res.json({
+    publicUrl: PUBLIC_URL || null,
+    oauthClientId: process.env.OAUTH_CLIENT_ID ? process.env.OAUTH_CLIENT_ID.substring(0, 6) + '…' : null,
+    oauthSecretSet: !!process.env.OAUTH_CLIENT_SECRET,
+    clientId: process.env.CLIENT_ID ? process.env.CLIENT_ID.substring(0, 6) + '…' : null,
+    frontendUrl: process.env.FRONTEND_URL || null,
+  });
+});
+
+router.get('/login', (_req, res) => {
   if (!PUBLIC_URL) {
     return res.status(500).json({ error: 'FRONTEND_URL is not configured on the server' });
   }
@@ -54,18 +59,17 @@ router.get('/callback', async (req, res) => {
 
     const tokenData = await tokenRes.json();
     if (tokenData.error) {
-      console.error('Discord token exchange failed:', tokenData.error);
-      return res.status(400).json({ error: tokenData.error });
+      const desc = tokenData.error_description || '';
+      console.error('Discord token exchange failed:', tokenData.error, desc);
+      const errorUrl = `${PUBLIC_URL}/?auth_error=${encodeURIComponent(tokenData.error)}&auth_detail=${encodeURIComponent(desc)}`;
+      return res.redirect(errorUrl);
     }
 
-    const userRes = await fetch(`${DISCORD_API}/users/@me`, {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
-    });
+    const [userRes, guildsRes] = await Promise.all([
+      fetch(`${DISCORD_API}/users/@me`, { headers: { Authorization: `Bearer ${tokenData.access_token}` } }),
+      fetch(`${DISCORD_API}/users/@me/guilds`, { headers: { Authorization: `Bearer ${tokenData.access_token}` } }),
+    ]);
     const user = await userRes.json();
-
-    const guildsRes = await fetch(`${DISCORD_API}/users/@me/guilds`, {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
-    });
     const guilds = await guildsRes.json();
 
     req.session.user = user;
@@ -75,7 +79,8 @@ router.get('/callback', async (req, res) => {
     res.redirect(PUBLIC_URL || '/');
   } catch (err) {
     console.error('OAuth callback error:', err);
-    res.status(500).json({ error: 'Authentication failed' });
+    const errorUrl = `${PUBLIC_URL}/?auth_error=server_error&auth_detail=${encodeURIComponent(String(err.message || err))}`;
+    res.redirect(errorUrl);
   }
 });
 
