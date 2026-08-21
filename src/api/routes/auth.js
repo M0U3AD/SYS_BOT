@@ -3,32 +3,60 @@ const router = express.Router();
 
 const DISCORD_API = 'https://discord.com/api';
 const SCOPES = 'identify guilds';
-const PUBLIC_URL = process.env.FRONTEND_URL || process.env.DASHBOARD_URL;
+
+// Public URL of the dashboard frontend (must match the OAuth redirect
+// registered in the Discord Developer Portal, without a trailing slash).
+const PUBLIC_URL = (process.env.FRONTEND_URL || process.env.DASHBOARD_URL || '').replace(/\/+$/, '');
+
+// The dashboard uses its own Discord application (separate from the bot).
+// OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET fall back to CLIENT_ID / CLIENT_SECRET.
+const OAUTH_CLIENT_ID = process.env.OAUTH_CLIENT_ID || process.env.CLIENT_ID;
+const OAUTH_CLIENT_SECRET = process.env.OAUTH_CLIENT_SECRET || process.env.CLIENT_SECRET;
+
+function callbackUrl() {
+  return `${PUBLIC_URL}/api/auth/callback`;
+}
 
 router.get('/login', (req, res) => {
-  const url = `${DISCORD_API}/oauth2/authorize?client_id=${process.env.CLIENT_ID}&redirect_uri=${encodeURIComponent(PUBLIC_URL + '/api/auth/callback')}&response_type=code&scope=${SCOPES}`;
-  res.json({ url });
+  if (!PUBLIC_URL) {
+    return res.status(500).json({ error: 'FRONTEND_URL is not configured on the server' });
+  }
+  const params = new URLSearchParams({
+    client_id: OAUTH_CLIENT_ID,
+    redirect_uri: callbackUrl(),
+    response_type: 'code',
+    scope: SCOPES,
+    integration_type: '0',
+  });
+  res.json({ url: `https://discord.com/oauth2/authorize?${params}` });
 });
 
 router.get('/callback', async (req, res) => {
   const { code } = req.query;
   if (!code) return res.status(400).json({ error: 'No code provided' });
 
+  if (!PUBLIC_URL) {
+    return res.status(500).json({ error: 'FRONTEND_URL is not configured on the server' });
+  }
+
   try {
     const tokenRes = await fetch(`${DISCORD_API}/oauth2/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: process.env.CLIENT_ID,
-        client_secret: process.env.CLIENT_SECRET,
+        client_id: OAUTH_CLIENT_ID,
+        client_secret: OAUTH_CLIENT_SECRET,
         grant_type: 'authorization_code',
         code,
-        redirect_uri: PUBLIC_URL + '/api/auth/callback',
+        redirect_uri: callbackUrl(),
       }),
     });
 
     const tokenData = await tokenRes.json();
-    if (tokenData.error) return res.status(400).json({ error: tokenData.error });
+    if (tokenData.error) {
+      console.error('Discord token exchange failed:', tokenData.error);
+      return res.status(400).json({ error: tokenData.error });
+    }
 
     const userRes = await fetch(`${DISCORD_API}/users/@me`, {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
