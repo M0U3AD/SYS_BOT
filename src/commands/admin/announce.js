@@ -4,7 +4,7 @@ const config = require('../../../config.json');
 module.exports = {
   name: 'announce',
   description: 'Send an announcement embed as the bot',
-  usage: '!announce <title> | <message>',
+  usage: '!announce <title> | <message> | [image URL or attachment]',
   async execute(message, args) {
     if (!message.member.permissions.has('ManageMessages')) {
       return message.reply({
@@ -19,13 +19,28 @@ module.exports = {
       return message.reply({
         embeds: [require('../../utils/embeds').errorEmbed(
           'Invalid Usage',
-          '`!announce <title> | <message>`\n\nThe `|` separator splits the title from the body.'
+          '`!announce <title> | <message> | [image URL]`\n\nThe `|` separator splits the title from the body. You can also attach an image to your message.'
         )],
       });
     }
 
     const title = parts[0];
-    const body = parts.slice(1).join(' | ') || '';
+    let body = parts.slice(1).join(' | ').trim();
+
+    let imageUrl = null;
+    const attachment = message.attachments.first();
+
+    if (attachment) {
+      imageUrl = attachment.url;
+    } else if (body) {
+      const tokens = body.split(/\s+/);
+      const lastToken = tokens[tokens.length - 1];
+      if (lastToken && /^https?:\/\/\S+$/.test(lastToken)) {
+        imageUrl = lastToken;
+        tokens.pop();
+        body = tokens.join(' ');
+      }
+    }
 
     const embed = new EmbedBuilder()
       .setColor(config.embedColor)
@@ -34,6 +49,7 @@ module.exports = {
       .setFooter({ text: message.guild.name, iconURL: message.guild.iconURL({ dynamic: true }) });
 
     if (body) embed.setDescription(body);
+    if (imageUrl) embed.setImage(imageUrl);
 
     message.delete().catch(() => {});
     message.channel.send({ embeds: [embed] });
