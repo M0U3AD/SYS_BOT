@@ -12,10 +12,26 @@ module.exports = {
       });
     }
 
-    const raw = args.join(' ');
-    const parts = raw.split('|').map(p => p.trim());
+    let raw = args.join(' ').trim();
 
-    if (!parts[0]) {
+    let imageUrl = null;
+    const attachment = message.attachments.first();
+
+    if (attachment) {
+      imageUrl = attachment.url;
+    } else {
+      const tokens = raw.split(/\s+/);
+      const lastToken = tokens[tokens.length - 1];
+      if (lastToken && /^https?:\/\/\S+$/i.test(lastToken)) {
+        imageUrl = lastToken;
+        tokens.pop();
+        raw = tokens.join(' ');
+      }
+    }
+
+    const parts = raw.split('|').map(p => p.trim()).filter(Boolean);
+
+    if (parts.length === 0 && !imageUrl) {
       return message.reply({
         embeds: [require('../../utils/embeds').errorEmbed(
           'Invalid Usage',
@@ -24,29 +40,11 @@ module.exports = {
       });
     }
 
-    const title = parts[0];
+    let title = parts[0] || 'Announcement';
     let body = parts.slice(1).join(' | ').trim();
 
-    let imageUrl = null;
-    const attachment = message.attachments.first();
-
-    if (attachment) {
-      imageUrl = attachment.url;
-    } else if (body) {
-      const tokens = body.split(/\s+/);
-      const lastToken = tokens[tokens.length - 1];
-      if (lastToken && /^https?:\/\/\S+$/i.test(lastToken)) {
-        imageUrl = lastToken;
-        tokens.pop();
-        body = tokens.join(' ');
-      }
-    }
-
-    if (imageUrl && !/^https?:\/\//i.test(imageUrl)) {
-      return message.reply({
-        embeds: [require('../../utils/embeds').errorEmbed('Invalid Image', 'The image link must start with `http://` or `https://`.')],
-      });
-    }
+    if (title.length > 256) title = title.slice(0, 253) + '...';
+    if (body.length > 4096) body = body.slice(0, 4093) + '...';
 
     const embed = new EmbedBuilder()
       .setColor(config.embedColor)
