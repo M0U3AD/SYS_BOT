@@ -35,11 +35,17 @@ module.exports = {
     } else if (body) {
       const tokens = body.split(/\s+/);
       const lastToken = tokens[tokens.length - 1];
-      if (lastToken && /^https?:\/\/\S+$/.test(lastToken)) {
+      if (lastToken && /^https?:\/\/\S+$/i.test(lastToken)) {
         imageUrl = lastToken;
         tokens.pop();
         body = tokens.join(' ');
       }
+    }
+
+    if (imageUrl && !/^https?:\/\//i.test(imageUrl)) {
+      return message.reply({
+        embeds: [require('../../utils/embeds').errorEmbed('Invalid Image', 'The image link must start with `http://` or `https://`.')],
+      });
     }
 
     const embed = new EmbedBuilder()
@@ -52,6 +58,13 @@ module.exports = {
     if (imageUrl) embed.setImage(imageUrl);
 
     message.delete().catch(() => {});
-    message.channel.send({ embeds: [embed] });
+    try {
+      await message.channel.send({ embeds: [embed] });
+    } catch (err) {
+      console.error('announce: failed to send embed:', err);
+      message.channel.send({
+        content: '⚠️ Could not send the announcement' + (imageUrl ? ' — the image link may be invalid or unreachable. Try a direct link to an image file.' : '.'),
+      }).catch(() => {});
+    }
   },
 };

@@ -6,6 +6,14 @@ const { loadEvents } = require('./src/utils/eventHandler');
 const { setupCommandTracking } = require('./src/utils/botStats');
 const createServer = require('./src/api/server');
 
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled promise rejection:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+});
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,

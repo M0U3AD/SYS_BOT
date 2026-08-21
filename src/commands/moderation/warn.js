@@ -103,7 +103,7 @@ module.exports = {
 
       if (i.customId === 'mod_cancel_' + message.author.id) {
         collector.stop('cancelled');
-        return i.update({ embeds: [errorEmbed(t('MOD_CANCELLED'), '')], components: [] });
+        return i.update({ embeds: [errorEmbed(t('MOD_CANCELLED'), '')], components: [] }).catch(() => {});
       }
 
       if (i.customId === 'mod_confirm_warn_' + message.author.id) {
@@ -126,19 +126,20 @@ module.exports = {
           const config = await getGuildConfig(message.guild.id);
           if (config.logging.modLogChannelId) {
             const ch = message.guild.channels.cache.get(config.logging.modLogChannelId);
-            if (ch) ch.send({ embeds: [logEmbed] });
+            if (ch) ch.send({ embeds: [logEmbed] }).catch(() => {});
           }
 
           if (config.moderation.warnAutoMute > 0 && total >= config.moderation.warnAutoMute) {
             await member.timeout(10 * 60 * 1000, 'Auto-mute: warning threshold reached');
-            message.channel.send({ embeds: [infoEmbed(t('MOD_WARN_TITLE', 'Auto-Mute'), emojis.mute + ' ' + t('MOD_WARN_AUTO_MUTE', member.user.tag, '' + total))] });
+            message.channel.send({ embeds: [infoEmbed(t('MOD_WARN_TITLE', 'Auto-Mute'), emojis.mute + ' ' + t('MOD_WARN_AUTO_MUTE', member.user.tag, '' + total))] }).catch(() => {});
           }
           if (config.moderation.warnAutoBan > 0 && total >= config.moderation.warnAutoBan) {
             await member.ban({ reason: 'Auto-ban: warning threshold reached' });
-            message.channel.send({ embeds: [infoEmbed(t('MOD_WARN_TITLE', 'Auto-Ban'), emojis.ban + ' ' + t('MOD_WARN_AUTO_BAN', member.user.tag, '' + total))] });
+            message.channel.send({ embeds: [infoEmbed(t('MOD_WARN_TITLE', 'Auto-Ban'), emojis.ban + ' ' + t('MOD_WARN_AUTO_BAN', member.user.tag, '' + total))] }).catch(() => {});
           }
         } catch (err) {
-          await i.update({ embeds: [errorEmbed(t('MOD_WARN_TITLE', 'Error'), err.message)], components: [] });
+          console.error('warn command error:', err);
+          await i.update({ embeds: [errorEmbed(t('MOD_WARN_TITLE', 'Error'), err.message)], components: [] }).catch(() => {});
         }
       }
     });
@@ -179,7 +180,7 @@ module.exports = {
     }
 
     const reason = interaction.options.getString('reason') || 'No reason provided';
-    const member = interaction.guild.members.cache.get(user.id);
+    const member = await interaction.guild.members.fetch(user.id).catch(() => null);
 
     if (member && member.id === interaction.user.id) {
       return interaction.reply({ embeds: [errorEmbed(t('MOD_SELF_ACTION'), t('MOD_SELF_ACTION'))], ephemeral: true });
@@ -218,7 +219,7 @@ module.exports = {
 
       if (i.customId === 'mod_cancel_' + interaction.user.id) {
         collector.stop('cancelled');
-        return i.update({ embeds: [errorEmbed(t('MOD_CANCELLED'), '')], components: [] });
+        return i.update({ embeds: [errorEmbed(t('MOD_CANCELLED'), '')], components: [] }).catch(() => {});
       }
 
       if (i.customId === 'mod_confirm_warn_' + interaction.user.id) {
@@ -241,19 +242,20 @@ module.exports = {
           const config = await getGuildConfig(interaction.guild.id);
           if (config.logging.modLogChannelId) {
             const ch = interaction.guild.channels.cache.get(config.logging.modLogChannelId);
-            if (ch) ch.send({ embeds: [logEmbed] });
+            if (ch) ch.send({ embeds: [logEmbed] }).catch(() => {});
           }
 
-          if (config.moderation.warnAutoMute > 0 && total >= config.moderation.warnAutoMute) {
+          if (member && config.moderation.warnAutoMute > 0 && total >= config.moderation.warnAutoMute) {
             await member.timeout(10 * 60 * 1000, 'Auto-mute: warning threshold reached');
-            interaction.channel.send({ embeds: [infoEmbed(t('MOD_WARN_TITLE', 'Auto-Mute'), emojis.mute + ' ' + t('MOD_WARN_AUTO_MUTE', user.tag, '' + total))] });
+            interaction.channel.send({ embeds: [infoEmbed(t('MOD_WARN_TITLE', 'Auto-Mute'), emojis.mute + ' ' + t('MOD_WARN_AUTO_MUTE', user.tag, '' + total))] }).catch(() => {});
           }
           if (config.moderation.warnAutoBan > 0 && total >= config.moderation.warnAutoBan) {
-            await member.ban({ reason: 'Auto-ban: warning threshold reached' });
-            interaction.channel.send({ embeds: [infoEmbed(t('MOD_WARN_TITLE', 'Auto-Ban'), emojis.ban + ' ' + t('MOD_WARN_AUTO_BAN', user.tag, '' + total))] });
+            await interaction.guild.members.ban(user.id, { reason: 'Auto-ban: warning threshold reached' });
+            interaction.channel.send({ embeds: [infoEmbed(t('MOD_WARN_TITLE', 'Auto-Ban'), emojis.ban + ' ' + t('MOD_WARN_AUTO_BAN', user.tag, '' + total))] }).catch(() => {});
           }
         } catch (err) {
-          await i.update({ embeds: [errorEmbed(t('MOD_WARN_TITLE', 'Error'), err.message)], components: [] });
+          console.error('warn slash error:', err);
+          await i.update({ embeds: [errorEmbed(t('MOD_WARN_TITLE', 'Error'), err.message)], components: [] }).catch(() => {});
         }
       }
     });
