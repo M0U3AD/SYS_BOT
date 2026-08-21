@@ -2,6 +2,7 @@ const { EmbedBuilder } = require('discord.js');
 const { errorEmbed } = require('../utils/embeds');
 const { getGuildConfig } = require('../database/utils/GuildConfig');
 const reactionRoles = require('../utils/reactionRoles');
+const tempVoice = require('../utils/tempVoice');
 
 module.exports = {
   name: 'interactionCreate',
@@ -10,6 +11,16 @@ module.exports = {
 
     if (interaction.customId && interaction.customId.startsWith('rr_')) {
       return reactionRoles.handleInteraction(interaction);
+    }
+
+    if ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith('tv_')) {
+      try {
+        return await tempVoice.handleInteraction(interaction);
+      } catch (error) {
+        console.error('Temp voice panel error:', error);
+        const reply = { content: 'Something went wrong.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) { await interaction.followUp(reply).catch(() => {}); } else { await interaction.reply(reply).catch(() => {}); }
+      }
     }
 
     if (interaction.isChatInputCommand()) {

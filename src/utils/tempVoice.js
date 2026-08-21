@@ -1,3 +1,12 @@
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+} = require('discord.js');
 const { getGuildConfig } = require('../database/utils/GuildConfig');
 
 const activeChannels = new Map();
@@ -5,6 +14,65 @@ const activeChannels = new Map();
 async function getTempVoiceConfig(guildId) {
   const config = await getGuildConfig(guildId);
   return config.tempVoice || {};
+}
+
+function buildPanel(voice, entry, color) {
+  const embed = new EmbedBuilder()
+    .setColor(color || '#5865F2')
+    .setTitle('🎛️ Voice Channel Control Panel')
+    .setDescription('You are the **owner** of this room. Use the buttons below to manage it.')
+    .addFields(
+      { name: '👑 Owner', value: '<@' + entry.ownerId + '>', inline: true },
+      { name: '🔒 Access', value: entry.locked ? '🔒 Locked' : '🌐 Public', inline: true },
+      { name: '👥 User Limit', value: voice && voice.userLimit ? String(voice.userLimit) : 'Unlimited', inline: true },
+    )
+    .setTimestamp();
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(entry.locked ? 'tv_unlock' : 'tv_lock')
+      .setLabel(entry.locked ? 'Unlock' : 'Lock')
+      .setEmoji(entry.locked ? '🔓' : '🔒')
+      .setStyle(entry.locked ? ButtonStyle.Success : ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('tv_rename')
+      .setLabel('Rename')
+      .setEmoji('✏️')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId('tv_limit')
+      .setLabel('User Limit')
+      .setEmoji('👥')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId('tv_delete')
+      .setLabel('Delete')
+      .setEmoji('🗑️')
+      .setStyle(ButtonStyle.Danger),
+  );
+
+  return { embeds: [embed], components: [row] };
+}
+
+async function sendControlPanel(textChannel, voice, entry, member, color) {
+  const msg = await textChannel
+    .send({ content: '<@' + member.id + '>', ...buildPanel(voice, entry, color) })
+    .catch(() => null);
+  if (msg) entry.panelMessageId = msg.id;
+}
+
+async function updateControlPanel(guild, entry) {
+  if (!entry.textChannelId || !entry.panelMessageId) return;
+  const textChannel = guild.channels.cache.get(entry.textChannelId);
+  const voice = guild.channels.cache.get(entry.voiceChannelId);
+  if (!textChannel || !voice) return;
+  try {
+    const config = await getGuildConfig(guild.id);
+    const msg = await textChannel.messages.fetch(entry.panelMessageId);
+    await msg.edit(buildPanel(voice, entry, config.embedColor));
+  } catch (e) {
+    // panel message gone, ignore
+  }
 }
 
 async function createTempChannels(guild, member, tvConfig) {
@@ -16,8 +84,7 @@ async function createTempChannels(guild, member, tvConfig) {
     .slice(0, 100) || user.username + ' Channel';
 
   const voiceOverwrites = [
-    { id: guild.id, deny: ['ViewChannel'] },
-    { id: member.id, allow: ['ViewChannel', 'Connect', 'Speak', 'Stream', 'UseVAD'], deny: ['MuteMembers'] },
+    { id: member.id, allow: ['ViewChannel', 'Connect', 'Speak', 'Stream', 'UseVAD', 'ManageChannels', 'MoveMembers'] },
   ];
   for (const rid of tvConfig.modRoleIds || []) {
     const role = guild.roles.cache.get(rid);
@@ -65,16 +132,26 @@ async function createTempChannels(guild, member, tvConfig) {
       parent: category ? category.id : undefined,
       permissionOverwrites: modOverwrites,
     });
-
-    await text.send({ content: '🛡️ **Moderation channel** for `' + vcName + '` · Owner: ' + user }).catch(() => {});
   }
 
-  activeChannels.set(voice.id, {
+  const entry = {
+    voiceChannelId: voice.id,
     textChannelId: text ? text.id : null,
     ownerId: member.id,
     guildId: guild.id,
     createdAt: Date.now(),
-  });
+    locked: false,
+    panelMessageId: null,
+  };
+  activeChannels.set(voice.id, entry);
+
+  if (text) {
+    const config = await getGuildConfig(guild.id);
+    await text.send({
+      content: '🛡️ **Moderation channel** for `' + vcName + '` · Owner: ' + user,
+    }).catch(() => {});
+    await sendControlPanel(text, voice, entry, member, config.embedColor);
+  }
 
   return { voice, text };
 }
@@ -93,6 +170,88 @@ async function cleanupChannel(guild, voiceChannelId) {
   }
 
   activeChannels.delete(voiceChannelId);
+}
+
+async function handleInteraction(interaction) {
+  const entry = [...activeChannels.values()].find(e => e.textChannelId === interaction.channel.id);
+  if (!entry) {
+    return interaction.reply({ content: 'This control panel is no longer active.', ephemeral: true });
+  }
+
+  const isOwner = interaction.user.id === entry.ownerId;
+  const isStaff = interaction.member.permissions.has('ManageGuild') || interaction.member.permissions.has('ManageChannels');
+  if (!isOwner && !isStaff) {
+    return interaction.reply({ content: 'Only the channel owner can use this panel.', ephemeral: true });
+  }
+
+  const guild = interaction.guild;
+  const voice = guild.channels.cache.get(entry.voiceChannelId);
+
+  if (interaction.isButton()) {
+    if (interaction.customId === 'tv_lock' || interaction.customId === 'tv_unlock') {
+      if (!voice) return interaction.reply({ content: 'Voice channel not found.', ephemeral: true });
+      const locking = interaction.customId === 'tv_lock';
+      await voice.permissionOverwrites.edit(guild.id, { Connect: locking ? false : null }).catch(() => {});
+      entry.locked = locking;
+      const config = await getGuildConfig(guild.id);
+      return interaction.update(buildPanel(voice, entry, config.embedColor));
+    }
+
+    if (interaction.customId === 'tv_rename') {
+      const modal = new ModalBuilder().setCustomId('tv_rename_modal').setTitle('Rename Channel');
+      modal.addComponents(new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('tv_name')
+          .setLabel('Channel name')
+          .setStyle(TextInputStyle.Short)
+          .setValue(voice ? voice.name : '')
+          .setMaxLength(100)
+          .setRequired(true),
+      ));
+      return interaction.showModal(modal);
+    }
+
+    if (interaction.customId === 'tv_limit') {
+      const modal = new ModalBuilder().setCustomId('tv_limit_modal').setTitle('User Limit');
+      modal.addComponents(new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('tv_limit_value')
+          .setLabel('Limit (0 = unlimited)')
+          .setStyle(TextInputStyle.Short)
+          .setValue(String((voice && voice.userLimit) || 0))
+          .setMaxLength(2)
+          .setRequired(true),
+      ));
+      return interaction.showModal(modal);
+    }
+
+    if (interaction.customId === 'tv_delete') {
+      await interaction.reply({ content: '🗑️ Deleting your channel...', ephemeral: true });
+      await cleanupChannel(guild, entry.voiceChannelId);
+      return;
+    }
+    return;
+  }
+
+  if (interaction.isModalSubmit()) {
+    if (interaction.customId === 'tv_rename_modal') {
+      const name = interaction.fields.getTextInputValue('tv_name').trim().slice(0, 100);
+      if (!name) return interaction.reply({ content: 'Name cannot be empty.', ephemeral: true });
+      if (voice) await voice.setName(name).catch(() => {});
+      const config = await getGuildConfig(guild.id);
+      return interaction.update(buildPanel(voice, entry, config.embedColor));
+    }
+
+    if (interaction.customId === 'tv_limit_modal') {
+      const limit = parseInt(interaction.fields.getTextInputValue('tv_limit_value').trim(), 10);
+      if (isNaN(limit) || limit < 0 || limit > 99) {
+        return interaction.reply({ content: 'Enter a number between **0** and **99**.', ephemeral: true });
+      }
+      if (voice) await voice.setUserLimit(limit).catch(() => {});
+      const config = await getGuildConfig(guild.id);
+      return interaction.update(buildPanel(voice, entry, config.embedColor));
+    }
+  }
 }
 
 async function handleVoiceStateUpdate(oldState, newState) {
@@ -158,5 +317,6 @@ module.exports = {
   getTempVoiceConfig,
   handleVoiceStateUpdate,
   handleChannelDelete,
+  handleInteraction,
   createTempChannels,
 };

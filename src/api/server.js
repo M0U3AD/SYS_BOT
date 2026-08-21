@@ -11,9 +11,17 @@ const storeRoutes = require('./routes/store');
 
 module.exports = function createServer(client) {
   const app = express();
+  const isHttps = (process.env.DASHBOARD_URL || '').startsWith('https://');
+
+  const allowedOrigins = [process.env.DASHBOARD_URL, process.env.FRONTEND_URL].filter(Boolean);
 
   app.use(cors({
-    origin: process.env.DASHBOARD_URL || 'http://localhost:5173',
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
     credentials: true,
   }));
 
@@ -25,8 +33,8 @@ module.exports = function createServer(client) {
     saveUninitialized: false,
     cookie: {
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      sameSite: isHttps ? 'none' : 'lax',
+      secure: isHttps,
     },
   }));
 
@@ -50,8 +58,8 @@ module.exports = function createServer(client) {
     }
   });
 
-  const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => {
+  const PORT = process.env.PORT || process.env.SERVER_PORT || 3000;
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`API server running on port ${PORT}`);
   });
 

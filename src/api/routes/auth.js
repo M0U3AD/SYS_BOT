@@ -3,9 +3,10 @@ const router = express.Router();
 
 const DISCORD_API = 'https://discord.com/api';
 const SCOPES = 'identify guilds';
+const PUBLIC_URL = process.env.FRONTEND_URL || process.env.DASHBOARD_URL;
 
 router.get('/login', (req, res) => {
-  const url = `${DISCORD_API}/oauth2/authorize?client_id=${process.env.CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.DASHBOARD_URL + '/api/auth/callback')}&response_type=code&scope=${SCOPES}`;
+  const url = `${DISCORD_API}/oauth2/authorize?client_id=${process.env.CLIENT_ID}&redirect_uri=${encodeURIComponent(PUBLIC_URL + '/api/auth/callback')}&response_type=code&scope=${SCOPES}`;
   res.json({ url });
 });
 
@@ -22,7 +23,7 @@ router.get('/callback', async (req, res) => {
         client_secret: process.env.CLIENT_SECRET,
         grant_type: 'authorization_code',
         code,
-        redirect_uri: process.env.DASHBOARD_URL + '/api/auth/callback',
+        redirect_uri: PUBLIC_URL + '/api/auth/callback',
       }),
     });
 
@@ -43,7 +44,7 @@ router.get('/callback', async (req, res) => {
     req.session.guilds = guilds;
     req.session.accessToken = tokenData.access_token;
 
-    res.redirect(process.env.DASHBOARD_URL || '/');
+    res.redirect(PUBLIC_URL || '/');
   } catch (err) {
     console.error('OAuth callback error:', err);
     res.status(500).json({ error: 'Authentication failed' });
