@@ -10,7 +10,6 @@ const folders = [
   'community',
   'support',
   'engagement',
-  'notifications',
 ];
 
 async function registerSlashCommands(client) {

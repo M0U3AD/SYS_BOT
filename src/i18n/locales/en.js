@@ -97,7 +97,6 @@ const en = {
   SETUP_XP: 'XP/Levels',
   SETUP_ECONOMY: 'Economy',
   SETUP_GIVEAWAYS: 'Giveaways',
-  SETUP_NOTIFICATIONS: 'Notifications',
   SETUP_LANGUAGE: 'Language',
   SETUP_REACTIONROLES: 'Reaction Roles',
   SETUP_STATUS: (feature, enabled) => feature + ': ' + (enabled ? '✅' : '❌'),
@@ -117,8 +116,6 @@ const en = {
   SETUP_ECONOMY_DESC: 'Configure the economy system.',
   SETUP_GIVEAWAY_TITLE: '🎉 Giveaway Setup',
   SETUP_GIVEAWAY_DESC: 'Configure the giveaway system.',
-  SETUP_NOTIFY_TITLE: '🔔 Notifications Setup',
-  SETUP_NOTIFY_DESC: 'Configure RSS feed notifications.',
   SETUP_LANG_TITLE: '🌐 Language Setup',
   SETUP_LANG_DESC: 'Change the bot language for this server.',
 

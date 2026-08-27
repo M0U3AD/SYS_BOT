@@ -11,7 +11,6 @@ function buildMainPanel(config) {
     { name: emojis.star + ' XP/Levels', value: config.xp.enabled ? '🟢 ON' : '🔴 OFF', inline: true },
     { name: emojis.coin + ' Economy', value: config.economy.enabled ? '🟢 ON' : '🔴 OFF', inline: true },
     { name: emojis.giveaway + ' Giveaways', value: config.giveaways.enabled ? '🟢 ON' : '🔴 OFF', inline: true },
-    { name: emojis.notify + ' Notifications', value: 'YT: ' + (config.notifications.youtube ? config.notifications.youtube.length : 0) + ' | TW: ' + (config.notifications.twitch ? config.notifications.twitch.length : 0) + ' | RD: ' + (config.notifications.reddit ? config.notifications.reddit.length : 0), inline: true },
     { name: emojis.globe + ' Language', value: (config.language || 'en').toUpperCase(), inline: true },
     { name: emojis.eye + ' Verification', value: config.verification.enabled ? '🟢 ON' : '🔴 OFF', inline: true },
   ];
@@ -35,7 +34,6 @@ function buildMainButtons() {
   );
   var row2 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('setup_panel_giveaways').setLabel('Giveaways').setStyle(ButtonStyle.Secondary).setEmoji(emojis.giveaway),
-    new ButtonBuilder().setCustomId('setup_panel_notifications').setLabel('Notifications').setStyle(ButtonStyle.Secondary).setEmoji(emojis.notify),
     new ButtonBuilder().setCustomId('setup_panel_verification').setLabel('Verification').setStyle(ButtonStyle.Secondary).setEmoji(emojis.eye),
   );
 
@@ -118,18 +116,6 @@ function buildFeaturePanel(feature, config) {
       ],
       toggleId: 'setup_toggle_giveaways',
       isOn: config.giveaways.enabled,
-    },
-    'notifications': {
-      title: emojis.notify + ' Notifications Setup',
-      desc: 'RSS feed notifications. Use slash commands to add feeds.',
-      fields: [
-        { name: 'YouTube', value: (config.notifications.youtube ? config.notifications.youtube.length : 0) + ' feed(s)', inline: true },
-        { name: 'Twitch', value: (config.notifications.twitch ? config.notifications.twitch.length : 0) + ' feed(s)', inline: true },
-        { name: 'Reddit', value: (config.notifications.reddit ? config.notifications.reddit.length : 0) + ' feed(s)', inline: true },
-        { name: 'Game News', value: (config.notifications.gameNews ? config.notifications.gameNews.length : 0) + ' feed(s)', inline: true },
-      ],
-      toggleId: null,
-      isOn: false,
     },
     'verification': {
       title: emojis.eye + ' Verification Setup',

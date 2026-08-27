@@ -2,6 +2,7 @@ const { EmbedBuilder } = require('discord.js');
 const { errorEmbed } = require('../utils/embeds');
 const { getGuildConfig } = require('../database/utils/GuildConfig');
 const reactionRoles = require('../utils/reactionRoles');
+const selfRole = require('../utils/selfRole');
 const tempVoice = require('../utils/tempVoice');
 
 module.exports = {
@@ -9,11 +10,15 @@ module.exports = {
   once: false,
   async execute(interaction, client) {
 
+    if (interaction.customId && interaction.customId.startsWith('sr_')) {
+      return selfRole.handleInteraction(interaction);
+    }
+
     if (interaction.customId && interaction.customId.startsWith('rr_')) {
       return reactionRoles.handleInteraction(interaction);
     }
 
-    if ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith('tv_')) {
+    if ((interaction.isButton() || interaction.isModalSubmit() || interaction.isUserSelectMenu()) && interaction.customId && interaction.customId.startsWith('tv_')) {
       try {
         return await tempVoice.handleInteraction(interaction);
       } catch (error) {

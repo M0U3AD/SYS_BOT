@@ -24,7 +24,6 @@ module.exports = {
     const community = ['welcome', 'autorole', 'reactionrole', 'verify'];
     const support = ['ticket', 'apply'];
     const engagement = ['rank', 'levels', 'balance', 'daily', 'pay', 'shop', 'giveaway', 'poll'];
-    const notifications = ['youtube', 'twitch', 'reddit', 'gamenews'];
     const admin = ['say', 'announce', 'dm', 'logs', 'setup', 'permissions', 'language', 'tempvoice', 'separator', 'roles'];
     const utility = ['ping', 'serverinfo', 'userinfo', 'avatar', 'help'];
     const store = ['addproduct', 'products', 'deleteproduct', 'redeem', 'regenerate'];
@@ -44,7 +43,6 @@ module.exports = {
         { name: '👋 Community', value: categorize(community) },
         { name: '🎫 Support', value: categorize(support) },
         { name: '🎉 Engagement', value: categorize(engagement) },
-        { name: '🔔 Notifications', value: categorize(notifications) },
         { name: '⚙️ Admin', value: categorize(admin) },
         { name: '📋 Utility', value: categorize(utility) },
         { name: '🛒 Store', value: categorize(store) },

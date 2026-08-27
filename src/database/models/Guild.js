@@ -31,6 +31,16 @@ const guildSchema = new mongoose.Schema({
   // Auto Roles
   autoRoles: { type: [String], default: [] },
 
+  // Self-Assign Roles (dropdown menu)
+  selfRoles: {
+    enabled: { type: Boolean, default: false },
+    channelId: { type: String, default: '' },
+    messageId: { type: String, default: '' },
+    title: { type: String, default: 'Choose Your Roles' },
+    description: { type: String, default: '' },
+    roles: { type: [String], default: [] },
+  },
+
   // Reaction Roles
   reactionRoles: [{
     messageId: String,
@@ -63,6 +73,9 @@ const guildSchema = new mongoose.Schema({
     createModChannel: { type: Boolean, default: true },
     channelNameTemplate: { type: String, default: '{user}\'s Channel' },
     modChannelName: { type: String, default: 'mod-{user}' },
+    userLimit: { type: Number, default: 0 },
+    emptyTimeoutSeconds: { type: Number, default: 30 },
+    maxRoomsPerUser: { type: Number, default: 1 },
   },
 
   // Moderation
@@ -123,32 +136,6 @@ const guildSchema = new mongoose.Schema({
     enabled: { type: Boolean, default: false },
     channelId: { type: String, default: '' },
     role: { type: String, default: '' },
-  },
-
-  // Notifications
-  notifications: {
-    youtube: [{
-      channelUrl: String,
-      channelId: String,
-      postChannelId: String,
-      lastChecked: Date,
-    }],
-    twitch: [{
-      username: String,
-      postChannelId: String,
-      lastChecked: Date,
-    }],
-    reddit: [{
-      subreddit: String,
-      postChannelId: String,
-      lastChecked: Date,
-    }],
-    gameNews: [{
-      game: String,
-      feedUrl: String,
-      postChannelId: String,
-      lastChecked: Date,
-    }],
   },
 
   // Permissions

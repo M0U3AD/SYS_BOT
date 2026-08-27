@@ -47,8 +47,6 @@ const emojis = {
   xp: '📈',
   coin: '🪙',
   shop: '🛒',
-  notify: '🔔',
-  rss: '📡',
   globe: '🌍',
   link: '🔗',
   tag: '🏷️',
