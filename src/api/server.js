@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const MongoStore = require('connect-mongo');
 const cors = require('cors');
 const path = require('path');
 const authRoutes = require('./routes/auth');
@@ -11,7 +12,9 @@ const storeRoutes = require('./routes/store');
 
 module.exports = function createServer(client) {
   const app = express();
-  const isHttps = (process.env.DASHBOARD_URL || '').startsWith('https://');
+  const publicUrl = process.env.FRONTEND_URL || process.env.DASHBOARD_URL || '';
+  const isHttps = publicUrl.startsWith('https://');
+  if (isHttps) app.set('trust proxy', 1);
 
   const allowedOrigins = [process.env.DASHBOARD_URL, process.env.FRONTEND_URL].filter(Boolean);
 
@@ -29,6 +32,10 @@ module.exports = function createServer(client) {
 
   app.use(session({
     secret: process.env.SESSION_SECRET || 'sys-bot-secret-change-me',
+    store: MongoStore.create({
+      mongoUrl: process.env.MONGODB_URI,
+      ttl: 7 * 24 * 60 * 60,
+    }),
     resave: false,
     saveUninitialized: false,
     cookie: {

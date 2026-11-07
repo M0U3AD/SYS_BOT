@@ -31,6 +31,33 @@ module.exports = function (client) {
     res.json(store.getCommandStats());
   });
 
+  router.get('/members', (req, res) => {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 500);
+    const members = [];
+
+    for (const guild of client.guilds.cache.values()) {
+      for (const member of guild.members.cache.values()) {
+        members.push({
+          id: `${guild.id}:${member.id}`,
+          userId: member.id,
+          guildId: guild.id,
+          guildName: guild.name,
+          name: member.user.tag,
+          displayName: member.displayName,
+          role: member.roles.highest?.name || 'Member',
+          status: member.presence?.status || 'offline',
+          joined: member.joinedAt?.toISOString() || null,
+          messages: null,
+          warnings: null,
+        });
+        if (members.length >= limit) break;
+      }
+      if (members.length >= limit) break;
+    }
+
+    res.json({ members, total: members.length });
+  });
+
   return router;
 };
 

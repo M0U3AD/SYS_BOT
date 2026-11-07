@@ -27,6 +27,14 @@ router.post('/', authMiddleware, (req, res) => {
   res.json(product);
 });
 
+router.patch('/:id', authMiddleware, (req, res) => {
+  const product = productStore.updateProduct(req.params.id, req.body);
+  if (!product) return res.status(404).json({ error: 'Product not found' });
+
+  store.addLog('Product Updated', `Product "${product.name}" updated via dashboard`, 'system');
+  res.json(product);
+});
+
 router.delete('/:id', authMiddleware, (req, res) => {
   const removed = productStore.deleteProduct(req.params.id);
   if (!removed) return res.status(404).json({ error: 'Product not found' });

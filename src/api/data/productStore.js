@@ -57,6 +57,17 @@ class ProductStore {
     return [...this.products];
   }
 
+  updateProduct(id, updates) {
+    const product = this.getProductById(id);
+    if (!product) return null;
+
+    if (typeof updates.name === 'string' && updates.name.trim()) product.name = updates.name.trim();
+    if (typeof updates.description === 'string') product.description = updates.description;
+    if (typeof updates.details === 'string') product.details = updates.details;
+    this._save();
+    return product;
+  }
+
   deleteProduct(id) {
     const idx = this.products.findIndex(p => p.id === id);
     if (idx === -1) return null;
