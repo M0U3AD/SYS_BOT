@@ -1,0 +1,136 @@
+:root {
+  --c-bg: #f5f7fc;
+  --c-surface: #ffffff;
+  --c-surface-hover: #f1f3fa;
+  --c-border: #e5e8f1;
+  --c-border-strong: #c8cede;
+  --c-text: #171a2b;
+  --c-text-secondary: #656b80;
+  --c-text-helper: #9298aa;
+  --c-primary-tint: #f0edff;
+  --c-success-bg: #e8f8ef;
+  --c-success-text: #17864c;
+  --c-warning-bg: #fff5df;
+  --c-warning-text: #946200;
+  --c-error-bg: #fff0f1;
+  --c-error-text: #c73b50;
+  color-scheme: light;
+}
+
+.dark {
+  --c-bg: #0d1020;
+  --c-surface: #151a2d;
+  --c-surface-hover: #1c2339;
+  --c-border: #272e46;
+  --c-border-strong: #414a67;
+  --c-text: #f2f3fb;
+  --c-text-secondary: #a4abc2;
+  --c-text-helper: #747d99;
+  --c-primary-tint: #242044;
+  --c-success-bg: #132b25;
+  --c-success-text: #57d99a;
+  --c-warning-bg: #302817;
+  --c-warning-text: #f3c75e;
+  --c-error-bg: #351d2a;
+  --c-error-text: #ff8c9a;
+  color-scheme: dark;
+}
+
+html {
+  background: var(--c-bg);
+}
+
+body {
+  background:
+    radial-gradient(ellipse at 8% 0%, color-mix(in srgb, #816bff 8%, transparent), transparent 32rem),
+    var(--c-bg);
+  color: var(--c-text);
+  letter-spacing: -0.01em;
+}
+
+button,
+a,
+input,
+textarea,
+select,
+[role="button"] {
+  transition-duration: 180ms;
+}
+
+button:not(:disabled):hover,
+[role="button"]:hover {
+  transform: translateY(-1px);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[role="button"]:focus-visible {
+  outline: 3px solid #8c7bff;
+  outline-offset: 2px;
+}
+
+[class~="border-border"] {
+  border-color: var(--c-border);
+}
+
+[class~="bg-surface"] {
+  border-color: var(--c-border);
+  box-shadow: 0 8px 28px rgb(23 29 58 / 5%);
+}
+
+.dark [class~="bg-surface"] {
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+}
+
+[class~="rounded-xl"] {
+  border-radius: 18px;
+}
+
+[class~="rounded-lg"] {
+  border-radius: 14px;
+}
+
+[class~="rounded-md"] {
+  border-radius: 11px;
+}
+
+[class~="text-primary"] {
+  color: #6b58e8;
+}
+
+.dark [class~="text-primary"] {
+  color: #a99bff;
+}
+
+[class~="bg-primary"] {
+  background-color: #6c5ce7;
+}
+
+[class~="hover:bg-primary-hover"]:hover {
+  background-color: #5746d3;
+}
+
+input,
+textarea,
+select {
+  border-color: var(--c-border);
+  border-radius: 11px;
+}
+
+::selection {
+  background: #dcd6ff;
+  color: #211653;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
