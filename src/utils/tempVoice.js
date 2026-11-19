@@ -213,6 +213,7 @@ async function createTempChannels(guild, member, tvConfig) {
 
   const voiceOverwrites = [
     { id: member.id, allow: OWNER_PERMISSIONS },
+    { id: guild.members.me.id, allow: ['ViewChannel', 'Connect', 'MoveMembers'] },
   ];
   for (const rid of tvConfig.modRoleIds || []) {
     const role = guild.roles.cache.get(rid);
@@ -243,7 +244,8 @@ async function createTempChannels(guild, member, tvConfig) {
 
   try {
     await member.voice.setChannel(voice);
-  } catch (e) {
+  } catch (err) {
+    console.error('tempVoice: failed to move member into the new room; grant the bot Move Members access in the trigger channel:', err);
     activeChannels.delete(voice.id);
     await TempChannel.deleteMany({ voiceChannelId: voice.id }).catch(() => {});
     await voice.delete('User left before move').catch(() => {});
@@ -261,6 +263,7 @@ async function createTempChannels(guild, member, tvConfig) {
     const modOverwrites = [
       { id: guild.id, deny: ['ViewChannel'] },
       { id: member.id, allow: ['ViewChannel', 'SendMessages', 'AttachFiles', 'ReadMessageHistory'] },
+      { id: guild.members.me.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] },
     ];
     for (const rid of tvConfig.modRoleIds || []) {
       const role = guild.roles.cache.get(rid);
