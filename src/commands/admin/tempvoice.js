@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
 const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
 const emojis = require('../../utils/emojis');
+const { ensureTriggerPermissions } = require('../../utils/tempVoice');
 const { getGuildConfig, updateGuildConfig } = require('../../database/utils/GuildConfig');
 
 function resolveChannel(mention, guild) {
@@ -45,6 +46,8 @@ async function autoSetup(guild, categoryName, triggerName) {
       parent: category.id,
     });
   }
+
+  await ensureTriggerPermissions(trigger);
 
   await updateGuildConfig(guild.id, {
     'tempVoice.enabled': true,
@@ -121,7 +124,7 @@ module.exports = {
         return message.reply({ embeds: [successEmbed('Temp Voice Auto-Setup', msg)] });
       } catch (err) {
         console.error('tempvoice create error:', err);
-        return message.reply({ embeds: [errorEmbed('Setup Failed', 'Could not create channels. Check bot permissions (Manage Channels).')] });
+        return message.reply({ embeds: [errorEmbed('Setup Failed', 'Could not create channels. Check the bot has Manage Channels and Manage Roles permissions.')] });
       }
     }
 
@@ -129,6 +132,12 @@ module.exports = {
       const trigger = resolveChannel(args[0], message.guild);
       if (!trigger || trigger.type !== 2) {
         return message.reply({ embeds: [errorEmbed('Invalid Usage', 'Mention a **voice channel** to use as the trigger: `!tempvoice setup <#voice> [#category]`')] });
+      }
+      try {
+        await ensureTriggerPermissions(trigger);
+      } catch (err) {
+        console.error('tempvoice setup permissions error:', err);
+        return message.reply({ embeds: [errorEmbed('Permission Setup Failed', 'Give the bot **Manage Roles**, or manually allow it **View Channel**, **Connect**, and **Move Members** in the trigger channel.')] });
       }
       const update = {
         'tempVoice.enabled': true,
@@ -229,7 +238,7 @@ module.exports = {
         return interaction.reply({ embeds: [successEmbed('Temp Voice Auto-Setup', 'Join-to-create channel **' + trigger.name + '** is ready. Joining <#' + trigger.id + '> creates your own room.')] });
       } catch (err) {
         console.error('tempvoice create error:', err);
-        return interaction.reply({ embeds: [errorEmbed('Setup Failed', 'Could not create channels. Check bot permissions (Manage Channels).')], ephemeral: true });
+        return interaction.reply({ embeds: [errorEmbed('Setup Failed', 'Could not create channels. Check the bot has Manage Channels and Manage Roles permissions.')], ephemeral: true });
       }
     }
 
@@ -238,6 +247,12 @@ module.exports = {
       const category = interaction.options.getChannel('category');
       if (!channel || channel.type !== 2) {
         return interaction.reply({ embeds: [errorEmbed('Invalid Channel', 'Select a **voice channel**.')], ephemeral: true });
+      }
+      try {
+        await ensureTriggerPermissions(channel);
+      } catch (err) {
+        console.error('tempvoice setup permissions error:', err);
+        return interaction.reply({ embeds: [errorEmbed('Permission Setup Failed', 'Give the bot **Manage Roles**, or manually allow it **View Channel**, **Connect**, and **Move Members** in the trigger channel.')], ephemeral: true });
       }
       const update = { 'tempVoice.enabled': true, 'tempVoice.triggerChannelId': channel.id };
       if (category && category.type === 4) update['tempVoice.categoryId'] = category.id;

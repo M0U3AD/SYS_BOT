@@ -30,6 +30,20 @@ async function getTempVoiceConfig(guildId) {
   return config.tempVoice || {};
 }
 
+async function ensureTriggerPermissions(channel) {
+  const bot = channel.guild.members.me;
+  if (!bot) throw new Error('Bot member is unavailable in this server.');
+
+  const required = ['ViewChannel', 'Connect', 'MoveMembers'];
+  if (required.every(permission => bot.permissionsIn(channel).has(permission))) return;
+
+  await channel.permissionOverwrites.edit(bot.id, {
+    ViewChannel: true,
+    Connect: true,
+    MoveMembers: true,
+  });
+}
+
 async function saveEntry(entry) {
   await TempChannel.updateOne(
     { voiceChannelId: entry.voiceChannelId },
@@ -206,9 +220,10 @@ async function updateControlPanel(guild, entry) {
 async function createTempChannels(guild, member, tvConfig) {
   const category = guild.channels.cache.get(tvConfig.categoryId) || null;
   const user = member.user;
+  const displayName = member.displayName || user.username;
 
   const vcName = String(tvConfig.channelNameTemplate || '{user}\'s Channel')
-    .replace('{user}', user.username)
+    .replace('{user}', displayName)
     .slice(0, 100) || user.username + ' Channel';
 
   const voiceOverwrites = [
@@ -501,6 +516,15 @@ async function handleVoiceStateUpdate(oldState, newState) {
   const userId = (newState && newState.id) || (oldState && oldState.id);
 
   if (newChannelId === tvConfig.triggerChannelId) {
+    const triggerChannel = guild.channels.cache.get(tvConfig.triggerChannelId);
+    try {
+      if (!triggerChannel) throw new Error('Configured trigger voice channel is missing.');
+      await ensureTriggerPermissions(triggerChannel);
+    } catch (err) {
+      console.error('tempVoice: trigger channel permissions are insufficient; grant the bot Manage Roles or manually allow View Channel, Connect, and Move Members in the trigger channel:', err);
+      return;
+    }
+
     let member = newState.member;
     if (!member || !member.user) {
       try {
@@ -632,6 +656,7 @@ module.exports = {
   activeChannels,
   pendingDeletes,
   getTempVoiceConfig,
+  ensureTriggerPermissions,
   handleVoiceStateUpdate,
   handleChannelDelete,
   handleInteraction,
