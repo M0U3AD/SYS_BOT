@@ -119,8 +119,9 @@ function buildPanel(voice, entry, color) {
   const embed = new EmbedBuilder()
     .setColor(color || '#5865F2')
     .setTitle('🎛️ Voice Channel Control Panel')
-    .setDescription('You are the **owner** of this room. Use the buttons below to manage it.')
+    .setDescription('You are the **owner** of this room. Use the buttons below or `.v` commands to manage it.')
     .addFields(
+      { name: 'Text commands', value: '`.v name <name>` rename the room\n`.v reject @member` remove and block a member\n`.v allow @member` restore access' },
       { name: '👑 Owner', value: '<@' + entry.ownerId + '>', inline: true },
       { name: '🔒 Access', value: entry.locked ? '🔒 Locked' : '🌐 Public', inline: true },
       { name: '👤 Members', value: String(members.length), inline: true },
@@ -191,6 +192,75 @@ function userSelect(placeholder, customId) {
       .setMaxValues(1),
   );
   return { content: placeholder, components: [row], ephemeral: true };
+}
+
+async function handleMessage(message) {
+  const match = message.content.trim().match(/^\.v(?:\s+(\S+))?(?:\s+([\s\S]*))?$/i);
+  if (!match) return false;
+
+  const entry = [...activeChannels.values()].find(e => e.textChannelId === message.channel.id);
+  if (!entry) return false;
+
+  const isOwner = message.author.id === entry.ownerId;
+  const isStaff = message.member.permissions.has('ManageGuild') || message.member.permissions.has('ManageChannels');
+  if (!isOwner && !isStaff) {
+    await message.reply('Only the channel owner can use these controls.');
+    return true;
+  }
+
+  const voice = message.guild.channels.cache.get(entry.voiceChannelId);
+  if (!voice) {
+    await message.reply('The temporary voice channel no longer exists.');
+    return true;
+  }
+
+  const action = (match[1] || 'help').toLowerCase();
+  const value = (match[2] || '').trim();
+  if (action === 'name') {
+    if (!value) {
+      await message.reply('Usage: `.v name <new name>`');
+      return true;
+    }
+    const name = value.slice(0, 100);
+    await voice.setName(name);
+    await updateControlPanel(message.guild, entry);
+    await message.reply('Voice room renamed to **' + name + '**.');
+    return true;
+  }
+
+  if (action === 'reject' || action === 'allow') {
+    const targetId = message.mentions.users.first()?.id || value.match(/\d{17,20}/)?.[0];
+    if (!targetId) {
+      await message.reply('Usage: `.v ' + action + ' @member`');
+      return true;
+    }
+    if (targetId === entry.ownerId) {
+      await message.reply('You cannot change access for the room owner.');
+      return true;
+    }
+
+    const member = message.guild.members.cache.get(targetId) || await message.guild.members.fetch(targetId).catch(() => null);
+    if (!member) {
+      await message.reply('Member not found.');
+      return true;
+    }
+
+    if (action === 'reject') {
+      await voice.permissionOverwrites.edit(targetId, { Connect: false });
+      if (member.voice.channelId === voice.id) {
+        await member.voice.disconnect('Rejected from temporary voice room');
+      }
+      await message.reply('<@' + targetId + '> was removed and blocked from this room.');
+    } else {
+      await voice.permissionOverwrites.edit(targetId, { Connect: null });
+      await message.reply('<@' + targetId + '> can join this room again.');
+    }
+    await updateControlPanel(message.guild, entry);
+    return true;
+  }
+
+  await message.reply('Commands: `.v name <name>`, `.v reject @member`, `.v allow @member`.');
+  return true;
 }
 
 async function sendControlPanel(textChannel, voice, entry, member, color) {
