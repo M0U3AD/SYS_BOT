@@ -3,7 +3,7 @@ const { errorEmbed } = require('../utils/embeds');
 const { getGuildConfig } = require('../database/utils/GuildConfig');
 const reactionRoles = require('../utils/reactionRoles');
 const selfRole = require('../utils/selfRole');
-const tempVoice = require('../utils/tempVoice');
+const tempVoice = require('../handlers/tempVoice');
 
 module.exports = {
   name: 'interactionCreate',
@@ -18,7 +18,7 @@ module.exports = {
       return reactionRoles.handleInteraction(interaction);
     }
 
-    if ((interaction.isButton() || interaction.isModalSubmit() || interaction.isUserSelectMenu()) && interaction.customId && interaction.customId.startsWith('tv_')) {
+    if ((interaction.isButton() || interaction.isModalSubmit() || interaction.isUserSelectMenu() || interaction.isRoleSelectMenu()) && interaction.customId && interaction.customId.startsWith('tv_')) {
       try {
         return await tempVoice.handleInteraction(interaction);
       } catch (error) {

@@ -1,7 +1,8 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
 const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
 const emojis = require('../../utils/emojis');
-const { ensureTriggerPermissions } = require('../../utils/tempVoice');
+const tempVoiceManager = require('../../utils/tempVoiceManager');
+const { ensureTriggerPermissions } = tempVoiceManager;
 const { getGuildConfig, updateGuildConfig } = require('../../database/utils/GuildConfig');
 
 function resolveChannel(mention, guild) {
@@ -19,10 +20,14 @@ function statusLine(config) {
     '**Enabled:** ' + (config.enabled ? '🟢 ON' : '🔴 OFF'),
     '**Trigger Channel:** ' + (config.triggerChannelId ? '<#' + config.triggerChannelId + '>' : 'Not set'),
     '**Category:** ' + (config.categoryId ? '<#' + config.categoryId + '>' : 'None'),
-    '**Mod Channel:** ' + (config.createModChannel ? 'Created automatically' : 'Disabled'),
+    '**Control Panel:** Voice channel chat',
     '**Mod Roles:** ' + ((config.modRoleIds || []).length ? config.modRoleIds.map(id => '<@&' + id + '>').join(' ') : 'None'),
-    '**Channel Name:** `' + (config.channelNameTemplate || "{user}'s Channel") + '`',
+    '**Channel Name:** `' + (config.channelNameTemplate || "{user}'s Room") + '`',
     '**User Limit:** ' + (config.userLimit > 0 ? config.userLimit : 'Unlimited'),
+    '**Default Bitrate:** ' + Math.round((config.bitrate || 64000) / 1000) + ' kbps',
+    '**Creation Cooldown:** ' + (config.cooldownSeconds || 0) + 's',
+    '**Allowed Roles:** ' + ((config.whitelistRoleIds || []).length ? config.whitelistRoleIds.map(id => '<@&' + id + '>').join(' ') : 'All members'),
+    '**Blocked Roles:** ' + ((config.blacklistRoleIds || []).length ? config.blacklistRoleIds.map(id => '<@&' + id + '>').join(' ') : 'None'),
     '**Empty Timeout:** ' + (config.emptyTimeoutSeconds > 0 ? config.emptyTimeoutSeconds + 's' : 'Instant'),
     '**Max Rooms / User:** ' + (config.maxRoomsPerUser || 1),
   ];
@@ -34,20 +39,30 @@ async function autoSetup(guild, categoryName, triggerName) {
   const trigName = (triggerName || '➕ Create Voice').slice(0, 100);
 
   let category = guild.channels.cache.find(c => c.type === 4 && c.name === catName);
+  let createdCategory = false;
   if (!category) {
     category = await guild.channels.create({ name: catName, type: ChannelType.GuildCategory });
+    createdCategory = true;
   }
 
   let trigger = guild.channels.cache.find(c => c.type === 2 && c.name === trigName && c.parentId === category.id);
+  let createdTrigger = false;
   if (!trigger) {
     trigger = await guild.channels.create({
       name: trigName,
       type: ChannelType.GuildVoice,
       parent: category.id,
     });
+    createdTrigger = true;
   }
 
-  await ensureTriggerPermissions(trigger);
+  try {
+    await ensureTriggerPermissions(trigger);
+  } catch (error) {
+    if (createdTrigger) await trigger.delete('Temp voice setup permission check failed').catch(() => {});
+    if (createdCategory) await category.delete('Temp voice setup permission check failed').catch(() => {});
+    throw error;
+  }
 
   await updateGuildConfig(guild.id, {
     'tempVoice.enabled': true,
@@ -73,9 +88,20 @@ module.exports = {
       .addStringOption(opt => opt.setName('channel').setDescription('Join-to-create channel name').setRequired(false)))
     .addSubcommand(sub => sub
       .setName('setup')
-      .setDescription('Enable temp voice with a trigger channel')
-      .addChannelOption(opt => opt.setName('channel').setDescription('Voice channel users join to create a room').setRequired(true))
+      .setDescription('Choose or create a join-to-create channel')
+      .addChannelOption(opt => opt.setName('channel').setDescription('Existing trigger voice channel (optional)').setRequired(false))
       .addChannelOption(opt => opt.setName('category').setDescription('Category for created channels (optional)').setRequired(false)))
+    .addSubcommand(sub => sub
+      .setName('config')
+      .setDescription('Configure temporary voice defaults')
+      .addStringOption(opt => opt.setName('template').setDescription('Name template: {user}, {count}').setMaxLength(100))
+      .addIntegerOption(opt => opt.setName('user-limit').setDescription('Default room limit (0 = unlimited)').setMinValue(0).setMaxValue(99))
+      .addIntegerOption(opt => opt.setName('max-per-user').setDescription('Maximum rooms per member').setMinValue(1).setMaxValue(5))
+      .addIntegerOption(opt => opt.setName('cooldown').setDescription('Creation cooldown in seconds').setMinValue(0).setMaxValue(3600))
+      .addIntegerOption(opt => opt.setName('bitrate').setDescription('Default bitrate in kbps').setMinValue(8).setMaxValue(384))
+      .addRoleOption(opt => opt.setName('allow-role').setDescription('Add a role allowed to create rooms'))
+      .addRoleOption(opt => opt.setName('block-role').setDescription('Add a role blocked from creating rooms'))
+      .addBooleanOption(opt => opt.setName('clear-role-rules').setDescription('Clear allowed and blocked role lists')))
     .addSubcommand(sub => sub
       .setName('category')
       .setDescription('Set the category for created channels')
@@ -88,10 +114,6 @@ module.exports = {
       .setName('unmod')
       .setDescription('Remove a moderator role')
       .addRoleOption(opt => opt.setName('role').setDescription('Moderator role').setRequired(true)))
-    .addSubcommand(sub => sub
-      .setName('modchannel')
-      .setDescription('Toggle the auto-created moderation channel')
-      .addBooleanOption(opt => opt.setName('enabled').setDescription('Create a mod channel with each room').setRequired(true)))
     .addSubcommand(sub => sub
       .setName('userlimit')
       .setDescription('Set the default user limit for created rooms')
@@ -124,7 +146,7 @@ module.exports = {
         return message.reply({ embeds: [successEmbed('Temp Voice Auto-Setup', msg)] });
       } catch (err) {
         console.error('tempvoice create error:', err);
-        return message.reply({ embeds: [errorEmbed('Setup Failed', 'Could not create channels. Check the bot has Manage Channels and Manage Roles permissions.')] });
+        return message.reply({ embeds: [errorEmbed('Setup Failed', err.message || 'Check the bot has Manage Channels and Move Members.')] });
       }
     }
 
@@ -137,7 +159,7 @@ module.exports = {
         await ensureTriggerPermissions(trigger);
       } catch (err) {
         console.error('tempvoice setup permissions error:', err);
-        return message.reply({ embeds: [errorEmbed('Permission Setup Failed', 'Give the bot **Manage Roles**, or manually allow it **View Channel**, **Connect**, and **Move Members** in the trigger channel.')] });
+        return message.reply({ embeds: [errorEmbed('Permission Setup Failed', err.message || 'Check the bot channel permissions.')] });
       }
       const update = {
         'tempVoice.enabled': true,
@@ -238,26 +260,78 @@ module.exports = {
         return interaction.reply({ embeds: [successEmbed('Temp Voice Auto-Setup', 'Join-to-create channel **' + trigger.name + '** is ready. Joining <#' + trigger.id + '> creates your own room.')] });
       } catch (err) {
         console.error('tempvoice create error:', err);
-        return interaction.reply({ embeds: [errorEmbed('Setup Failed', 'Could not create channels. Check the bot has Manage Channels and Manage Roles permissions.')], ephemeral: true });
+        return interaction.reply({ embeds: [errorEmbed('Setup Failed', err.message || 'Check the bot has Manage Channels and Move Members.')], ephemeral: true });
       }
     }
 
     if (sub === 'setup') {
       const channel = interaction.options.getChannel('channel');
       const category = interaction.options.getChannel('category');
-      if (!channel || channel.type !== 2) {
+      if (category && category.type !== 4) {
+        return interaction.reply({ embeds: [errorEmbed('Invalid Category', 'Choose a server category channel.')], ephemeral: true });
+      }
+      if (!channel) {
+        try {
+          const result = await autoSetup(interaction.guild, category?.name);
+          return interaction.reply({ embeds: [successEmbed('Temp Voice Enabled', 'Join <#' + result.trigger.id + '> to create your room in **' + result.category.name + '**.')] });
+        } catch (err) {
+          console.error('tempvoice setup error:', err);
+        return interaction.reply({ embeds: [errorEmbed('Setup Failed', err.message || 'Check the bot has Manage Channels and Move Members.')], ephemeral: true });
+        }
+      }
+      if (channel.type !== 2) {
         return interaction.reply({ embeds: [errorEmbed('Invalid Channel', 'Select a **voice channel**.')], ephemeral: true });
+      }
+      if (!category && config.tempVoice.categoryId && !interaction.guild.channels.cache.get(config.tempVoice.categoryId)) {
+        return interaction.reply({ embeds: [errorEmbed('Category Missing', 'The saved room category was deleted. Run `/tempvoice setup` and choose a valid category.')], ephemeral: true });
       }
       try {
         await ensureTriggerPermissions(channel);
       } catch (err) {
         console.error('tempvoice setup permissions error:', err);
-        return interaction.reply({ embeds: [errorEmbed('Permission Setup Failed', 'Give the bot **Manage Roles**, or manually allow it **View Channel**, **Connect**, and **Move Members** in the trigger channel.')], ephemeral: true });
+        return interaction.reply({ embeds: [errorEmbed('Permission Setup Failed', err.message || 'Check the bot channel permissions.')], ephemeral: true });
       }
       const update = { 'tempVoice.enabled': true, 'tempVoice.triggerChannelId': channel.id };
       if (category && category.type === 4) update['tempVoice.categoryId'] = category.id;
       await updateGuildConfig(interaction.guild.id, update);
       return interaction.reply({ embeds: [successEmbed('Temp Voice Enabled', 'Join <#' + channel.id + '> to create your own room.')] });
+    }
+
+    if (sub === 'config') {
+      const update = {};
+      const template = interaction.options.getString('template');
+      const userLimit = interaction.options.getInteger('user-limit');
+      const maxPerUser = interaction.options.getInteger('max-per-user');
+      const cooldown = interaction.options.getInteger('cooldown');
+      const bitrate = interaction.options.getInteger('bitrate');
+      const allowRole = interaction.options.getRole('allow-role');
+      const blockRole = interaction.options.getRole('block-role');
+      const clearRoles = interaction.options.getBoolean('clear-role-rules');
+
+      if (template !== null) update['tempVoice.channelNameTemplate'] = template;
+      if (userLimit !== null) update['tempVoice.userLimit'] = userLimit;
+      if (maxPerUser !== null) update['tempVoice.maxRoomsPerUser'] = maxPerUser;
+      if (cooldown !== null) update['tempVoice.cooldownSeconds'] = cooldown;
+      if (bitrate !== null) update['tempVoice.bitrate'] = bitrate * 1000;
+      if (clearRoles) {
+        update['tempVoice.whitelistRoleIds'] = [];
+        update['tempVoice.blacklistRoleIds'] = [];
+      }
+      if (allowRole) {
+        const roles = clearRoles ? [] : [...(config.tempVoice.whitelistRoleIds || [])];
+        if (!roles.includes(allowRole.id)) roles.push(allowRole.id);
+        update['tempVoice.whitelistRoleIds'] = roles;
+      }
+      if (blockRole) {
+        const roles = clearRoles ? [] : [...(config.tempVoice.blacklistRoleIds || [])];
+        if (!roles.includes(blockRole.id)) roles.push(blockRole.id);
+        update['tempVoice.blacklistRoleIds'] = roles;
+      }
+      if (!Object.keys(update).length) {
+        return interaction.reply({ content: 'Choose at least one setting to update.', ephemeral: true });
+      }
+      await updateGuildConfig(interaction.guild.id, update);
+      return interaction.reply({ embeds: [successEmbed('Temp Voice Config Updated', 'Room defaults, creation limits, and role rules have been saved.')], ephemeral: true });
     }
 
     if (sub === 'category') {
@@ -323,6 +397,12 @@ module.exports = {
     }
 
     if (sub === 'info') {
+      if (!config.tempVoice.enabled || !config.tempVoice.triggerChannelId || !interaction.guild.channels.cache.get(config.tempVoice.triggerChannelId)) {
+        return interaction.reply({ embeds: [errorEmbed('Temp Voice Not Set Up', 'The join-to-create channel is missing or disabled. Run `/tempvoice setup` to configure it again.')], ephemeral: true });
+      }
+      if (config.tempVoice.categoryId && !interaction.guild.channels.cache.get(config.tempVoice.categoryId)) {
+        return interaction.reply({ embeds: [errorEmbed('Category Missing', 'The saved room category was deleted. Run `/tempvoice setup` and choose a valid category.')], ephemeral: true });
+      }
       return interaction.reply({ embeds: [infoEmbed(emojis.user + ' Temp Voice', statusLine(config.tempVoice))], ephemeral: true });
     }
   },

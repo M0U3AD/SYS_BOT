@@ -21,6 +21,8 @@ const OWNER_PERMISSIONS = {
   Speak: true,
   Stream: true,
   UseVAD: true,
+  SendMessages: true,
+  ReadMessageHistory: true,
   ManageChannels: true,
   MoveMembers: true,
 };
@@ -198,7 +200,9 @@ async function handleMessage(message) {
   const match = message.content.trim().match(/^\.v(?:\s+(\S+))?(?:\s+([\s\S]*))?$/i);
   if (!match) return false;
 
-  const entry = [...activeChannels.values()].find(e => e.textChannelId === message.channel.id);
+  const entry = [...activeChannels.values()].find(e =>
+    e.voiceChannelId === message.channel.id || e.textChannelId === message.channel.id
+  );
   if (!entry) return false;
 
   const isOwner = message.author.id === entry.ownerId;
@@ -263,8 +267,8 @@ async function handleMessage(message) {
   return true;
 }
 
-async function sendControlPanel(textChannel, voice, entry, member, color) {
-  const msg = await textChannel
+async function sendControlPanel(panelChannel, voice, entry, member, color) {
+  const msg = await panelChannel
     .send({ content: '<@' + member.id + '>', ...buildPanel(voice, entry, color) })
     .catch(() => null);
   if (msg) {
@@ -274,13 +278,11 @@ async function sendControlPanel(textChannel, voice, entry, member, color) {
 }
 
 async function updateControlPanel(guild, entry) {
-  if (!entry.textChannelId || !entry.panelMessageId) return;
-  const textChannel = guild.channels.cache.get(entry.textChannelId);
   const voice = guild.channels.cache.get(entry.voiceChannelId);
-  if (!textChannel || !voice) return;
+  if (!voice || !entry.panelMessageId) return;
   try {
     const config = await getGuildConfig(guild.id);
-    const msg = await textChannel.messages.fetch(entry.panelMessageId);
+    const msg = await voice.messages.fetch(entry.panelMessageId);
     await msg.edit(buildPanel(voice, entry, config.embedColor));
   } catch (e) {
     // panel message gone, ignore
@@ -298,12 +300,12 @@ async function createTempChannels(guild, member, tvConfig) {
 
   const voiceOverwrites = [
     { id: member.id, allow: OWNER_PERMISSIONS },
-    { id: guild.members.me.id, allow: ['ViewChannel', 'Connect', 'MoveMembers'] },
+    { id: guild.members.me.id, allow: ['ViewChannel', 'Connect', 'MoveMembers', 'SendMessages', 'ReadMessageHistory'] },
   ];
   for (const rid of tvConfig.modRoleIds || []) {
     const role = guild.roles.cache.get(rid);
     if (role) {
-      voiceOverwrites.push({ id: rid, allow: ['ViewChannel', 'Connect', 'MoveMembers', 'ManageChannels'] });
+      voiceOverwrites.push({ id: rid, allow: ['ViewChannel', 'Connect', 'MoveMembers', 'ManageChannels', 'SendMessages', 'ReadMessageHistory'] });
     }
   }
 
@@ -367,13 +369,13 @@ async function createTempChannels(guild, member, tvConfig) {
     await saveEntry(entry);
   }
 
+  const config = await getGuildConfig(guild.id);
   if (text) {
-    const config = await getGuildConfig(guild.id);
     await text.send({
       content: '🛡️ **Moderation channel** for `' + vcName + '` · Owner: ' + user,
     }).catch(() => {});
-    await sendControlPanel(text, voice, entry, member, config.embedColor);
   }
+  await sendControlPanel(voice, voice, entry, member, config.embedColor);
 
   return { voice, text };
 }
@@ -467,7 +469,9 @@ async function handleUserSelect(interaction, entry, voice) {
 }
 
 async function handleInteraction(interaction) {
-  const entry = [...activeChannels.values()].find(e => e.textChannelId === interaction.channel.id);
+  const entry = [...activeChannels.values()].find(e =>
+    e.voiceChannelId === interaction.channel.id || e.textChannelId === interaction.channel.id
+  );
   if (!entry) {
     return interaction.reply({ content: 'This control panel is no longer active.', ephemeral: true });
   }
@@ -659,7 +663,6 @@ async function handleChannelDelete(channel) {
   for (const entry of activeChannels.values()) {
     if (entry.textChannelId === channel.id) {
       entry.textChannelId = null;
-      entry.panelMessageId = null;
       await saveEntry(entry);
     }
   }
@@ -697,18 +700,20 @@ async function restoreActiveChannels(client) {
     activeChannels.set(doc.voiceChannelId, entry);
 
     const textChannel = guild.channels.cache.get(entry.textChannelId);
-    if (textChannel) {
-      const config = await getGuildConfig(guild.id);
-      if (entry.panelMessageId) {
-        const found = await textChannel.messages.fetch(entry.panelMessageId).catch(() => null);
-        if (!found) entry.panelMessageId = null;
+    const config = await getGuildConfig(guild.id);
+    if (entry.panelMessageId) {
+      const found = await voice.messages.fetch(entry.panelMessageId).catch(() => null);
+      if (!found && textChannel) {
+        const oldPanel = await textChannel.messages.fetch(entry.panelMessageId).catch(() => null);
+        if (oldPanel) await oldPanel.delete().catch(() => {});
       }
-      if (!entry.panelMessageId) {
-        const member = guild.members.cache.get(entry.ownerId) ||
-          await guild.members.fetch(entry.ownerId).catch(() => null);
-        if (member) {
-          await sendControlPanel(textChannel, voice, entry, member, config.embedColor);
-        }
+      if (!found) entry.panelMessageId = null;
+    }
+    if (!entry.panelMessageId) {
+      const member = guild.members.cache.get(entry.ownerId) ||
+        await guild.members.fetch(entry.ownerId).catch(() => null);
+      if (member) {
+        await sendControlPanel(voice, voice, entry, member, config.embedColor);
       }
     }
 

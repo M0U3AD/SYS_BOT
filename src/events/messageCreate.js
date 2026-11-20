@@ -1,5 +1,5 @@
 const config = require('../../config.json');
-const tempVoice = require('../utils/tempVoice');
+const tempVoice = require('../handlers/tempVoice');
 
 module.exports = {
   name: 'messageCreate',

@@ -71,11 +71,15 @@ const guildSchema = new mongoose.Schema({
     categoryId: { type: String, default: '' },
     modRoleIds: { type: [String], default: [] },
     createModChannel: { type: Boolean, default: true },
-    channelNameTemplate: { type: String, default: '{user}\'s Channel' },
+    channelNameTemplate: { type: String, default: '{user}\'s Room' },
     modChannelName: { type: String, default: 'mod-{user}' },
     userLimit: { type: Number, default: 0 },
-    emptyTimeoutSeconds: { type: Number, default: 30 },
+    emptyTimeoutSeconds: { type: Number, default: 0 },
     maxRoomsPerUser: { type: Number, default: 1 },
+    cooldownSeconds: { type: Number, default: 0 },
+    bitrate: { type: Number, default: 64000 },
+    whitelistRoleIds: { type: [String], default: [] },
+    blacklistRoleIds: { type: [String], default: [] },
   },
 
   // Moderation

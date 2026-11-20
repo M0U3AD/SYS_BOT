@@ -1,4 +1,4 @@
-const { handleVoiceStateUpdate } = require('../../utils/tempVoice');
+const { handleVoiceStateUpdate } = require('../../utils/tempVoiceManager');
 
 module.exports = {
   name: 'voiceStateUpdate',
