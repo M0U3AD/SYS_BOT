@@ -24,7 +24,7 @@ module.exports = {
     const community = ['welcome', 'autorole', 'reactionrole', 'verify'];
     const support = ['ticket', 'apply'];
     const engagement = ['rank', 'levels', 'balance', 'daily', 'pay', 'shop', 'giveaway', 'poll'];
-    const admin = ['say', 'announce', 'dm', 'logs', 'setup', 'permissions', 'language', 'tempvoice', 'separator', 'roles'];
+    const admin = ['say', 'announce', 'logs', 'setup', 'permissions', 'language', 'tempvoice', 'separator', 'roles'];
     const utility = ['ping', 'serverinfo', 'userinfo', 'avatar', 'help'];
     const store = ['addproduct', 'products', 'deleteproduct', 'redeem', 'regenerate'];
 

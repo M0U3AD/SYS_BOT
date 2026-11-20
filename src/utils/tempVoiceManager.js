@@ -48,6 +48,10 @@ function entryFrom(doc) {
     hidden: Boolean(doc.hidden),
     members: (doc.members || []).map(m => ({ userId: m.userId, joinedAt: new Date(m.joinedAt || Date.now()) })),
     bannedUserIds: doc.bannedUserIds || [],
+    coOwnerIds: doc.coOwnerIds || [],
+    whitelistUserIds: doc.whitelistUserIds || [],
+    blacklistUserIds: doc.blacklistUserIds || [],
+    trustedUserIds: doc.trustedUserIds || [],
     createdAt: doc.createdAt ? new Date(doc.createdAt).getTime() : Date.now(),
   };
 }
@@ -65,6 +69,10 @@ async function saveEntry(entry) {
       hidden: Boolean(entry.hidden),
       members: entry.members || [],
       bannedUserIds: entry.bannedUserIds || [],
+      coOwnerIds: entry.coOwnerIds || [],
+      whitelistUserIds: entry.whitelistUserIds || [],
+      blacklistUserIds: entry.blacklistUserIds || [],
+      trustedUserIds: entry.trustedUserIds || [],
       createdAt: new Date(entry.createdAt || Date.now()),
     } },
     { upsert: true },
@@ -86,7 +94,7 @@ function isStaff(member) {
 }
 
 function isOwnerOrStaff(userId, member, entry) {
-  return userId === entry.ownerId || isStaff(member);
+  return userId === entry.ownerId || (entry.coOwnerIds || []).includes(userId) || isStaff(member);
 }
 
 async function ensureTriggerPermissions(channel) {
@@ -289,6 +297,10 @@ async function createTempChannels(guild, member, tvConfig) {
     hidden: Boolean(preference?.hidden),
     members: [{ userId: member.id, joinedAt: new Date() }],
     bannedUserIds: [],
+    coOwnerIds: [],
+    whitelistUserIds: [],
+    blacklistUserIds: [],
+    trustedUserIds: [],
     createdAt: Date.now(),
   };
   activeChannels.set(voice.id, entry);
@@ -433,7 +445,15 @@ async function handleVoiceStateUpdate(oldState, newState) {
     const entry = await getEntry(newId);
     if (entry) {
       clearScheduledDelete(newId);
+      if ((entry.bannedUserIds || []).includes(userId) || (entry.blacklistUserIds || []).includes(userId)) {
+        await member.voice.disconnect('You are blocked from this temporary voice room.').catch(err => console.error('tempVoice: blocked member disconnect failed:', err));
+        return;
+      }
       if (!entry.members.some(item => item.userId === userId)) entry.members.push({ userId, joinedAt: new Date() });
+      if ((entry.trustedUserIds || []).includes(userId) && !(entry.coOwnerIds || []).includes(userId)) {
+        await guild.channels.cache.get(newId).permissionOverwrites.edit(userId, OWNER_PERMISSIONS);
+        entry.coOwnerIds.push(userId);
+      }
       await saveEntry(entry);
       await refreshPanel(guild, entry).catch(err => console.error('tempVoice: panel refresh failed:', err));
     }
@@ -505,7 +525,8 @@ async function restoreActiveChannels(client) {
         const entry = {
           guildId: guild.id, voiceChannelId: voice.id, textChannelId: null,
           ownerId: ownerOverwrite.id, panelMessageId: null, locked: false,
-          hidden: false, members: [], bannedUserIds: [], createdAt: Date.now(),
+          hidden: false, members: [], bannedUserIds: [], coOwnerIds: [],
+          whitelistUserIds: [], blacklistUserIds: [], trustedUserIds: [], createdAt: Date.now(),
         };
         activeChannels.set(voice.id, entry);
         await synchronizeMembers(guild, voice, entry);
@@ -733,22 +754,99 @@ async function handleMessage(message) {
   if (!usedPrefix) return false;
   const entry = await getEntry(message.channel.id);
   if (!entry) return false;
-  if (!isOwnerOrStaff(message.author.id, message.member, entry)) {
+  const [action = '', ...parts] = content.slice(usedPrefix.length).trim().split(/\s+/);
+  const command = action.toLowerCase();
+  const subcommand = (parts[0] || '').toLowerCase();
+  const value = parts.join(' ').trim();
+  const isClaim = command === 'claim';
+  if (!isOwnerOrStaff(message.author.id, message.member, entry) && !isClaim) {
     await message.reply('Only the room owner or a server admin can use these controls.');
     return true;
   }
   const voice = message.guild.channels.cache.get(entry.voiceChannelId);
-  const [action = '', ...parts] = content.slice(usedPrefix.length).trim().split(/\s+/);
-  const value = parts.join(' ').trim();
+  if (!voice) {
+    await message.reply('The temporary voice room no longer exists.');
+    return true;
+  }
+  const targetId = message.mentions.users.first()?.id || value.match(/\d{17,20}/)?.[0];
+  const target = targetId && (message.guild.members.cache.get(targetId) || await message.guild.members.fetch(targetId).catch(() => null));
   try {
-    if (action.toLowerCase() === 'name' && value) await renameRoom(message.guild, voice, entry, value);
-    else if (action.toLowerCase() === 'reject') {
-      const id = message.mentions.users.first()?.id || value.match(/\d{17,20}/)?.[0];
-      const member = id && (message.guild.members.cache.get(id) || await message.guild.members.fetch(id).catch(() => null));
-      if (!member) throw new Error('Usage: `' + usedPrefix + ' reject @member`.');
-      await voice.permissionOverwrites.edit(member.id, { Connect: false });
-      if (member.voice.channelId === voice.id) await member.voice.disconnect('Room owner action');
-    } else return false;
+    if (command === 'help') {
+      return message.reply('Room commands: `' + usedPrefix + ' name <text>`, `lock`, `unlock`, `hide`, `show`, `limit <n>`, `permit @member`, `reject @member`, `claim`, `transfer @member`, `add_owner @member`, `wl add @member`, `wlpermit`, `bl add @member`, `trust @member`, `info`, `leaderboard`.');
+    }
+    if (command === 'claim') {
+      await takeOwnership(message.guild, voice, entry, message.member, isStaff(message.member));
+    } else if (command === 'name' || command === 'rename') {
+      if (!value) throw new Error('Usage: `' + usedPrefix + ' name <new name>`.');
+      await renameRoom(message.guild, voice, entry, value);
+    } else if (command === 'lock' || command === 'unlock') {
+      entry.locked = command === 'lock';
+      await voice.permissionOverwrites.edit(message.guild.roles.everyone, { Connect: entry.locked ? false : null });
+      await saveEntry(entry);
+    } else if (command === 'hide' || command === 'show' || command === 'unhide') {
+      entry.hidden = command === 'hide';
+      await voice.permissionOverwrites.edit(message.guild.roles.everyone, { ViewChannel: entry.hidden ? false : null });
+      await saveEntry(entry);
+    } else if (command === 'limit') {
+      const limit = Number(parts[0]);
+      if (!Number.isInteger(limit) || limit < 0 || limit > 99) throw new Error('Usage: `' + usedPrefix + ' limit <0-99>`.');
+      await voice.setUserLimit(limit);
+    } else if (command === 'permit' || command === 'allow') {
+      if (!target) throw new Error('Usage: `' + usedPrefix + ' permit @member`.');
+      await setAccess(voice, entry, target, { allow: true });
+      entry.whitelistUserIds = [...new Set([...(entry.whitelistUserIds || []), target.id])];
+      await saveEntry(entry);
+    } else if (command === 'reject') {
+      if (!target) throw new Error('Usage: `' + usedPrefix + ' reject @member`.');
+      if (target.id === entry.ownerId) throw new Error('You cannot reject the room owner.');
+      await voice.permissionOverwrites.edit(target.id, { Connect: false });
+      entry.bannedUserIds = [...new Set([...(entry.bannedUserIds || []), target.id])];
+      entry.blacklistUserIds = [...new Set([...(entry.blacklistUserIds || []), target.id])];
+      await saveEntry(entry);
+      if (target.voice.channelId === voice.id) await target.voice.disconnect('Room owner action');
+    } else if (command === 'transfer') {
+      if (!target) throw new Error('Usage: `' + usedPrefix + ' transfer @member`.');
+      await transferOwner(message.guild, voice, entry, target);
+    } else if (command === 'add_owner' || command === 'add-owner') {
+      if (!target || target.user.bot) throw new Error('Usage: `' + usedPrefix + ' add_owner @member`.');
+      if (!voice.members.has(target.id)) throw new Error('The co-owner must be in this room.');
+      await voice.permissionOverwrites.edit(target.id, OWNER_PERMISSIONS);
+      entry.coOwnerIds = [...new Set([...(entry.coOwnerIds || []), target.id])];
+      await saveEntry(entry);
+    } else if (command === 'wl' && subcommand === 'add') {
+      if (!target) throw new Error('Usage: `' + usedPrefix + ' wl add @member`.');
+      await setAccess(voice, entry, target, { allow: true });
+      entry.whitelistUserIds = [...new Set([...(entry.whitelistUserIds || []), target.id])];
+      await saveEntry(entry);
+    } else if (command === 'wlpermit') {
+      for (const id of entry.whitelistUserIds || []) {
+        const whitelisted = message.guild.members.cache.get(id) || await message.guild.members.fetch(id).catch(() => null);
+        if (whitelisted) await setAccess(voice, entry, whitelisted, { allow: true });
+      }
+    } else if (command === 'bl' && subcommand === 'add') {
+      if (!target) throw new Error('Usage: `' + usedPrefix + ' bl add @member`.');
+      if (target.id === entry.ownerId) throw new Error('You cannot blacklist the room owner.');
+      await voice.permissionOverwrites.edit(target.id, { Connect: false });
+      entry.blacklistUserIds = [...new Set([...(entry.blacklistUserIds || []), target.id])];
+      entry.bannedUserIds = [...new Set([...(entry.bannedUserIds || []), target.id])];
+      await saveEntry(entry);
+      if (target.voice.channelId === voice.id) await target.voice.disconnect('Room owner action');
+    } else if (command === 'trust') {
+      if (!target || target.user.bot) throw new Error('Usage: `' + usedPrefix + ' trust @member`.');
+      entry.trustedUserIds = [...new Set([...(entry.trustedUserIds || []), target.id])];
+      if (voice.members.has(target.id)) {
+        await voice.permissionOverwrites.edit(target.id, OWNER_PERMISSIONS);
+        entry.coOwnerIds = [...new Set([...(entry.coOwnerIds || []), target.id])];
+      }
+      await saveEntry(entry);
+    } else if (command === 'info') {
+      return message.reply('Room: **' + voice.name + '** · Owner: <@' + entry.ownerId + '> · Members: **' + voice.members.size + '** · Limit: **' + (voice.userLimit || 'Unlimited') + '** · ' + (entry.locked ? 'Locked' : 'Open') + (entry.hidden ? ' · Hidden' : ''));
+    } else if (command === 'leaderboard') {
+      const leaders = [...entry.members].sort((a, b) => a.joinedAt - b.joinedAt).slice(0, 10);
+      return message.reply('Room presence leaderboard:\n' + (leaders.length ? leaders.map((item, index) => (index + 1) + '. <@' + item.userId + '>').join('\n') : 'No tracked members yet.'));
+    } else {
+      return message.reply('Unknown room command. Use `' + usedPrefix + ' help` to see available commands.');
+    }
     await refreshPanel(message.guild, entry);
     await message.reply('Temporary voice room updated.');
   } catch (error) {

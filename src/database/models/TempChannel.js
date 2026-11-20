@@ -10,6 +10,10 @@ const tempChannelSchema = new mongoose.Schema({
   panelMessageId: { type: String, default: null },
   members: [{ userId: String, joinedAt: Date }],
   bannedUserIds: { type: [String], default: [] },
+  coOwnerIds: { type: [String], default: [] },
+  whitelistUserIds: { type: [String], default: [] },
+  blacklistUserIds: { type: [String], default: [] },
+  trustedUserIds: { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now },
 }, { timestamps: true });
 
