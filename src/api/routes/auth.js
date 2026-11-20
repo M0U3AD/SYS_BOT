@@ -6,6 +6,35 @@ const DISCORD_API = 'https://discord.com/api';
 const SCOPES = 'identify guilds';
 
 const PUBLIC_URL = (process.env.FRONTEND_URL || process.env.DASHBOARD_URL || '').replace(/\/+$/, '');
+router.post('/password', (req, res) => {
+  const { email, password } = req.body || {};
+  const configuredEmail = process.env.DASHBOARD_EMAIL;
+  const configuredPassword = process.env.DASHBOARD_PASSWORD;
+
+  if (!configuredEmail || !configuredPassword) {
+    return res.status(503).json({ error: 'Email login is not configured' });
+  }
+
+  if (!credentialsMatch(email, configuredEmail) || !credentialsMatch(password, configuredPassword)) {
+    return res.status(401).json({ error: 'Invalid email or password' });
+  }
+
+  req.session.regenerate((error) => {
+    if (error) {
+      console.error('Password session creation failed:', error);
+      return res.status(500).json({ error: 'Unable to create a login session' });
+    }
+
+    req.session.user = {
+      id: `email:${configuredEmail.toLowerCase()}`,
+      username: configuredEmail,
+      avatar: null,
+    };
+    req.session.guilds = [];
+    req.session.authMethod = 'password';
+    res.json({ user: req.session.user });
+  });
+});
 const OAUTH_CLIENT_ID = process.env.OAUTH_CLIENT_ID || process.env.CLIENT_ID;
 const OAUTH_CLIENT_SECRET = process.env.OAUTH_CLIENT_SECRET || process.env.CLIENT_SECRET;
 
@@ -43,35 +72,7 @@ router.get('/login', (_req, res) => {
     integration_type: '0',
   });
 
-  router.post('/password', (req, res) => {
-    const { email, password } = req.body || {};
-    const configuredEmail = process.env.DASHBOARD_EMAIL;
-    const configuredPassword = process.env.DASHBOARD_PASSWORD;
 
-    if (!configuredEmail || !configuredPassword) {
-      return res.status(503).json({ error: 'Email login is not configured' });
-    }
-
-    if (!credentialsMatch(email, configuredEmail) || !credentialsMatch(password, configuredPassword)) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    req.session.regenerate((error) => {
-      if (error) {
-        console.error('Password session creation failed:', error);
-        return res.status(500).json({ error: 'Unable to create a login session' });
-      }
-
-      req.session.user = {
-        id: `email:${configuredEmail.toLowerCase()}`,
-        username: configuredEmail,
-        avatar: null,
-      };
-      req.session.guilds = [];
-      req.session.authMethod = 'password';
-      res.json({ user: req.session.user });
-    });
-  });
   res.json({ url: `https://discord.com/oauth2/authorize?${params}` });
 });
 

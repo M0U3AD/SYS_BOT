@@ -1,6 +1,7 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const { connectDatabase } = require('./src/database/connection');
+const productStore = require('./src/api/data/productStore');
 const { loadCommands } = require('./src/utils/commandHandler');
 const { loadEvents } = require('./src/utils/eventHandler');
 const { setupCommandTracking } = require('./src/utils/botStats');
@@ -29,6 +30,7 @@ const client = new Client({
 
 (async () => {
   await connectDatabase();
+  await productStore.migrateLegacyFile();
   loadCommands(client);
   loadEvents(client);
   setupCommandTracking(client);

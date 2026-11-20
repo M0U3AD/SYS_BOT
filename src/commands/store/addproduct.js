@@ -29,7 +29,7 @@ module.exports = {
     const description = parts[1] || '';
     const details = parts[2] || '';
 
-    const product = productStore.addProduct({
+    const product = await productStore.addProduct({
       name,
       description,
       details,

@@ -13,7 +13,7 @@ module.exports = {
       });
     }
 
-    const products = productStore.getAllProducts();
+    const products = await productStore.getAllProducts();
 
     if (products.length === 0) {
       return message.reply({
@@ -27,7 +27,7 @@ module.exports = {
       .setTimestamp();
 
     for (const p of products) {
-      const redemptions = productStore.getRedemptionCount(p.id);
+      const redemptions = await productStore.getRedemptionCount(p.id);
       embed.addFields({
         name: p.name,
         value: [

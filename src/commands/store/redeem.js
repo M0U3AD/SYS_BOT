@@ -17,7 +17,7 @@ module.exports = {
       });
     }
 
-    const result = productStore.redeem(key, message.author.id, message.author.tag);
+    const result = await productStore.redeem(key, message.author.id, message.author.tag);
 
     if (!result.success) {
       return message.reply({

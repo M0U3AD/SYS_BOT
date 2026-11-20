@@ -19,7 +19,7 @@ module.exports = {
       });
     }
 
-    const removed = productStore.deleteProduct(id);
+    const removed = await productStore.deleteProduct(id);
     if (!removed) {
       return message.reply({
         embeds: [errorEmbed('Not Found', 'No product found with that ID.')],

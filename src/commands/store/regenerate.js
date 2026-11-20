@@ -20,7 +20,7 @@ module.exports = {
       });
     }
 
-    const product = productStore.regenerateKey(id);
+    const product = await productStore.regenerateKey(id);
     if (!product) {
       return message.reply({
         embeds: [require('../../utils/embeds').errorEmbed('Not Found', 'No product found with that ID.')],
