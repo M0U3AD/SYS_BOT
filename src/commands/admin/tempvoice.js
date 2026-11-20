@@ -25,6 +25,7 @@ function statusLine(config) {
     '**Channel Name:** `' + (config.channelNameTemplate || "{user}'s Room") + '`',
     '**User Limit:** ' + (config.userLimit > 0 ? config.userLimit : 'Unlimited'),
     '**Default Bitrate:** ' + Math.round((config.bitrate || 64000) / 1000) + ' kbps',
+    '**Welcome Cheat-sheet:** ' + (config.sendWelcomeEmbed === false ? 'Off' : 'On'),
     '**Creation Cooldown:** ' + (config.cooldownSeconds || 0) + 's',
     '**Allowed Roles:** ' + ((config.whitelistRoleIds || []).length ? config.whitelistRoleIds.map(id => '<@&' + id + '>').join(' ') : 'All members'),
     '**Blocked Roles:** ' + ((config.blacklistRoleIds || []).length ? config.blacklistRoleIds.map(id => '<@&' + id + '>').join(' ') : 'None'),
@@ -101,7 +102,8 @@ module.exports = {
       .addIntegerOption(opt => opt.setName('bitrate').setDescription('Default bitrate in kbps').setMinValue(8).setMaxValue(384))
       .addRoleOption(opt => opt.setName('allow-role').setDescription('Add a role allowed to create rooms'))
       .addRoleOption(opt => opt.setName('block-role').setDescription('Add a role blocked from creating rooms'))
-      .addBooleanOption(opt => opt.setName('clear-role-rules').setDescription('Clear allowed and blocked role lists')))
+      .addBooleanOption(opt => opt.setName('clear-role-rules').setDescription('Clear allowed and blocked role lists'))
+      .addBooleanOption(opt => opt.setName('welcome-embed').setDescription('Send a welcome cheat-sheet in new rooms')))
     .addSubcommand(sub => sub
       .setName('category')
       .setDescription('Set the category for created channels')
@@ -307,12 +309,14 @@ module.exports = {
       const allowRole = interaction.options.getRole('allow-role');
       const blockRole = interaction.options.getRole('block-role');
       const clearRoles = interaction.options.getBoolean('clear-role-rules');
+      const welcomeEmbed = interaction.options.getBoolean('welcome-embed');
 
       if (template !== null) update['tempVoice.channelNameTemplate'] = template;
       if (userLimit !== null) update['tempVoice.userLimit'] = userLimit;
       if (maxPerUser !== null) update['tempVoice.maxRoomsPerUser'] = maxPerUser;
       if (cooldown !== null) update['tempVoice.cooldownSeconds'] = cooldown;
       if (bitrate !== null) update['tempVoice.bitrate'] = bitrate * 1000;
+      if (welcomeEmbed !== null) update['tempVoice.sendWelcomeEmbed'] = welcomeEmbed;
       if (clearRoles) {
         update['tempVoice.whitelistRoleIds'] = [];
         update['tempVoice.blacklistRoleIds'] = [];

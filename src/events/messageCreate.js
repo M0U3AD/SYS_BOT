@@ -7,13 +7,11 @@ module.exports = {
   async execute(message, client) {
     if (message.author.bot) return;
 
-    if (/^\.v(?:\s|$)/i.test(message.content.trim())) {
-      try {
-        if (await tempVoice.handleMessage(message)) return;
-      } catch (error) {
-        console.error('Temp voice text command error:', error);
-        await message.reply('The temporary voice command failed. Check the bot permissions and try again.').catch(() => {});
-      }
+    try {
+      if (await tempVoice.handleMessage(message)) return;
+    } catch (error) {
+      console.error('Temp voice text command error:', error);
+      await message.reply('The temporary voice command failed. Check the bot permissions and try again.').catch(() => {});
     }
 
     if (!message.content.startsWith(config.prefix)) return;

@@ -299,7 +299,7 @@ async function createTempChannels(guild, member, tvConfig) {
     .slice(0, 100) || user.username + ' Channel';
 
   const voiceOverwrites = [
-    { id: member.id, allow: OWNER_PERMISSIONS },
+    { id: member.id, allow: Object.keys(OWNER_PERMISSIONS) },
     { id: guild.members.me.id, allow: ['ViewChannel', 'Connect', 'MoveMembers', 'SendMessages', 'ReadMessageHistory'] },
   ];
   for (const rid of tvConfig.modRoleIds || []) {

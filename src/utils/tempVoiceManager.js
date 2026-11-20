@@ -15,6 +15,7 @@ const TempChannel = require('../database/models/TempChannel');
 const TempVoicePreference = require('../database/models/TempVoicePreference');
 const Guild = require('../database/models/Guild');
 const { getGuildConfig, updateGuildConfig } = require('../database/utils/GuildConfig');
+const botConfig = require('../../config.json');
 
 const activeChannels = new Map();
 const pendingDeletes = new Map();
@@ -145,6 +146,36 @@ function makePanel(voice, entry, color) {
   return { embeds: [embed], components: [row1, row2, row3, row4] };
 }
 
+function buildWelcomeEmbed(owner, channel, prefix = '.') {
+  const command = prefix + 'v';
+  return new EmbedBuilder()
+    .setColor('#5865F2')
+    .setTitle('👑 Welcome, ' + owner.displayName + ' — ' + channel.name + ' is yours!')
+    .setThumbnail(owner.displayAvatarURL({ size: 256 }))
+    .setDescription("Here's a quick cheat-sheet so you can manage your channel right away.")
+    .addFields(
+      { name: '🔒 Privacy', value: '`' + command + ' lock` / `' + command + ' unlock` — Lock the channel\n`' + command + ' hide` / `' + command + ' show` — Hide from everyone\n`' + command + ' limit <n>` — Set user limit\n`' + command + ' name <text>` — Rename the channel', inline: false },
+      { name: '👤 Members', value: '`' + command + ' permit <@user>` — Allow someone in\n`' + command + ' reject <@user>` — Kick & deny someone\n`' + command + ' claim` — Take ownership if abandoned\n`' + command + ' transfer <@user>` — Hand the channel over\n`' + command + ' add_owner <@user>` — Add a co-owner', inline: false },
+      { name: '❤️ Personal lists', value: '`' + command + ' wl add <@user>` — Whitelist a friend\n`' + command + ' wlpermit` — Permit your whole whitelist\n`' + command + ' bl add <@user>` — Blacklist a user\n`' + command + ' trust <@user>` — Auto-promote to co-owner', inline: false },
+      { name: 'ℹ️ Info', value: '`' + command + ' info` • `' + command + ' leaderboard` • `' + command + ' help`', inline: false },
+    )
+    .setFooter({ text: 'Tip: type ' + command + ' help for the full interactive menu' });
+}
+
+async function sendWelcomeEmbed(owner, channel, config) {
+  if (config.sendWelcomeEmbed === false) return;
+  const prefix = String(botConfig.prefix || '!');
+  try {
+    await channel.send({
+      content: '<@' + owner.id + '>',
+      embeds: [buildWelcomeEmbed(owner, channel, prefix)],
+      allowedMentions: { users: [owner.id] },
+    });
+  } catch (error) {
+    console.error('tempVoice: welcome embed send failed for channel ' + channel.id + ':', error);
+  }
+}
+
 async function postPanel(voice, entry) {
   const config = await getGuildConfig(entry.guildId);
   const message = await voice.send({ content: '<@' + entry.ownerId + '>', ...makePanel(voice, entry, config.embedColor) });
@@ -228,8 +259,9 @@ async function createTempChannels(guild, member, tvConfig) {
   const bitrate = Math.min(Number(tvConfig.bitrate) || 64000, maximumBitrate);
   const everyone = guild.roles.everyone.id;
   const permissionOverwrites = [
-    { id: member.id, allow: OWNER_PERMISSIONS },
-    { id: guild.members.me.id, allow: ['ViewChannel', 'Connect', 'SendMessages', 'ReadMessageHistory', 'ManageChannels', 'MoveMembers', 'MuteMembers'] },
+    // Channel creation expects permission names here; OWNER_PERMISSIONS itself is the edit-overwrite format.
+    { id: member.id, allow: Object.keys(OWNER_PERMISSIONS) },
+    { id: guild.members.me.id, allow: ['ViewChannel', 'Connect', 'SendMessages', 'EmbedLinks', 'ReadMessageHistory', 'ManageChannels', 'MoveMembers', 'MuteMembers'] },
   ];
   if (preference?.locked) permissionOverwrites.push({ id: everyone, deny: ['Connect'] });
   if (preference?.hidden) permissionOverwrites.push({ id: everyone, deny: ['ViewChannel'] });
@@ -265,6 +297,7 @@ async function createTempChannels(guild, member, tvConfig) {
     await saveEntry(entry);
     await postPanel(voice, entry);
     await member.voice.setChannel(voice);
+    await sendWelcomeEmbed(member, voice, tvConfig);
     return voice;
   } catch (error) {
     activeChannels.delete(voice.id);
@@ -693,8 +726,11 @@ async function handleVoiceCommand(interaction) {
 }
 
 async function handleMessage(message) {
-  const match = message.content.trim().match(/^\.v(?:\s+(\S+))?(?:\s+([\s\S]*))?$/i);
-  if (!match) return false;
+  const content = message.content.trim();
+  const prefixes = [...new Set(['.v', String(botConfig.prefix || '!') + 'v'])];
+  const usedPrefix = prefixes.find(prefix => content.toLowerCase() === prefix.toLowerCase() ||
+    content.toLowerCase().startsWith(prefix.toLowerCase() + ' '));
+  if (!usedPrefix) return false;
   const entry = await getEntry(message.channel.id);
   if (!entry) return false;
   if (!isOwnerOrStaff(message.author.id, message.member, entry)) {
@@ -702,14 +738,14 @@ async function handleMessage(message) {
     return true;
   }
   const voice = message.guild.channels.cache.get(entry.voiceChannelId);
-  const [action, ...rest] = (match[1] || '').split(' ');
-  const value = [rest.join(' '), match[2]].filter(Boolean).join(' ').trim();
+  const [action = '', ...parts] = content.slice(usedPrefix.length).trim().split(/\s+/);
+  const value = parts.join(' ').trim();
   try {
-    if (action === 'name' && value) await renameRoom(message.guild, voice, entry, value);
-    else if (action === 'reject') {
+    if (action.toLowerCase() === 'name' && value) await renameRoom(message.guild, voice, entry, value);
+    else if (action.toLowerCase() === 'reject') {
       const id = message.mentions.users.first()?.id || value.match(/\d{17,20}/)?.[0];
       const member = id && (message.guild.members.cache.get(id) || await message.guild.members.fetch(id).catch(() => null));
-      if (!member) throw new Error('Usage: `.v reject @member`.');
+      if (!member) throw new Error('Usage: `' + usedPrefix + ' reject @member`.');
       await voice.permissionOverwrites.edit(member.id, { Connect: false });
       if (member.voice.channelId === voice.id) await member.voice.disconnect('Room owner action');
     } else return false;
@@ -735,5 +771,6 @@ module.exports = {
   handleVoiceCommand,
   handleMessage,
   saveEntry,
+  buildWelcomeEmbed,
   scheduleEmptyTimeout,
 };

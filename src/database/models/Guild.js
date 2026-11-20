@@ -78,6 +78,7 @@ const guildSchema = new mongoose.Schema({
     maxRoomsPerUser: { type: Number, default: 1 },
     cooldownSeconds: { type: Number, default: 0 },
     bitrate: { type: Number, default: 64000 },
+    sendWelcomeEmbed: { type: Boolean, default: true },
     whitelistRoleIds: { type: [String], default: [] },
     blacklistRoleIds: { type: [String], default: [] },
   },
