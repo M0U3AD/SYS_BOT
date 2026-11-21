@@ -112,7 +112,7 @@ module.exports = {
       new ButtonBuilder()
         .setCustomId('mod_confirm_warn_' + message.author.id)
         .setLabel(t('MOD_CONFIRM_BTN', 'Warn'))
-        .setStyle(ButtonStyle.Warning)
+        .setStyle(ButtonStyle.Danger)
         .setEmoji(emojis.warn),
       new ButtonBuilder()
         .setCustomId('mod_cancel_' + message.author.id)
@@ -225,7 +225,7 @@ module.exports = {
       new ButtonBuilder()
         .setCustomId('mod_confirm_warn_' + interaction.user.id)
         .setLabel(t('MOD_CONFIRM_BTN', 'Warn'))
-        .setStyle(ButtonStyle.Warning)
+        .setStyle(ButtonStyle.Danger)
         .setEmoji(emojis.warn),
       new ButtonBuilder()
         .setCustomId('mod_cancel_' + interaction.user.id)
