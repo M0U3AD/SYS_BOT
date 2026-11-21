@@ -6,6 +6,36 @@ const Log = require('../../database/models/Log');
 const { getGuildConfig } = require('../../database/utils/GuildConfig');
 const { getT } = require('../../i18n');
 
+function formatWarningList(warns, t) {
+  const maxLength = 950;
+  const lines = [];
+  let length = 0;
+
+  for (let i = 0; i < warns.length; i++) {
+    const reason = String(warns[i].reason || 'No reason provided');
+    const entry = t(
+      'MOD_WARN_LIST_ENTRY',
+      '' + (i + 1),
+      reason.length > 600 ? reason.slice(0, 597) + '...' : reason,
+      warns[i].moderatorId,
+      new Date(warns[i].date).toLocaleDateString()
+    );
+    const remaining = warns.length - i;
+    const suffix = '… and ' + remaining + ' more warning(s).';
+    const separator = lines.length ? '\n' : '';
+
+    if (length + separator.length + entry.length > maxLength) {
+      lines.push(suffix);
+      break;
+    }
+
+    lines.push(entry);
+    length += separator.length + entry.length;
+  }
+
+  return lines.join('\n') || '\u200b';
+}
+
 module.exports = {
   name: 'warn',
   description: 'Warn a member, view warnings, or clear warnings',
@@ -42,9 +72,7 @@ module.exports = {
       if (warns.length === 0) {
         return message.reply({ embeds: [infoEmbed(t('MOD_WARN_NO_WARNINGS', member.user.tag), emojis.check + ' ' + t('MOD_WARN_NO_WARNINGS', member.user.tag))] });
       }
-      const list = warns.map(function(w, i) {
-        return t('MOD_WARN_LIST_ENTRY', '' + (i + 1), w.reason, w.moderatorId, new Date(w.date).toLocaleDateString());
-      }).join('\n');
+      const list = formatWarningList(warns, t);
       const embed = modEmbed(emojis.warn, t('MOD_WARN_LIST_TITLE', member.user.tag), [
         { name: emojis.chart + ' Total', value: '' + warns.length, inline: true },
         { name: emojis.user + ' User', value: member.user.tag, inline: true },
@@ -153,37 +181,35 @@ module.exports = {
   },
 
   async slashExecute(interaction, client) {
-    const t = await getT(interaction.guild.id);
-
     const sub = interaction.options.getSubcommand();
+    await interaction.deferReply({ ephemeral: sub === 'list' });
+    const t = await getT(interaction.guild.id);
     const user = interaction.options.getUser('user');
 
     if (sub === 'list') {
       const warns = await Warning.getWarnings(interaction.guild.id, user.id);
       if (warns.length === 0) {
-        return interaction.reply({ embeds: [infoEmbed(t('MOD_WARN_NO_WARNINGS', user.tag), emojis.check + ' ' + t('MOD_WARN_NO_WARNINGS', user.tag))], ephemeral: true });
+        return interaction.editReply({ embeds: [infoEmbed(t('MOD_WARN_NO_WARNINGS', user.tag), emojis.check + ' ' + t('MOD_WARN_NO_WARNINGS', user.tag))] });
       }
-      const list = warns.map(function(w, i) {
-        return t('MOD_WARN_LIST_ENTRY', '' + (i + 1), w.reason, w.moderatorId, new Date(w.date).toLocaleDateString());
-      }).join('\n');
+      const list = formatWarningList(warns, t);
       const embed = modEmbed(emojis.warn, t('MOD_WARN_LIST_TITLE', user.tag), [
         { name: emojis.chart + ' Total', value: '' + warns.length, inline: true },
         { name: emojis.user + ' User', value: user.tag, inline: true },
         { name: '\u200b', value: list, inline: false },
       ], { thumbnail: user.displayAvatarURL({ dynamic: true }) });
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+      return interaction.editReply({ embeds: [embed] });
     }
 
     if (sub === 'clear') {
       const count = await Warning.clearWarnings(interaction.guild.id, user.id);
-      return interaction.reply({ embeds: [successEmbed(t('MOD_WARN_TITLE', 'Cleared'), t('MOD_WARN_CLEAR_SUCCESS', '' + count, user.tag))] });
+      return interaction.editReply({ embeds: [successEmbed(t('MOD_WARN_TITLE', 'Cleared'), t('MOD_WARN_CLEAR_SUCCESS', '' + count, user.tag))] });
     }
 
     const reason = interaction.options.getString('reason') || 'No reason provided';
     const member = await interaction.guild.members.fetch(user.id).catch(() => null);
 
     if (member && member.id === interaction.user.id) {
-      return interaction.reply({ embeds: [errorEmbed(t('MOD_SELF_ACTION'), t('MOD_SELF_ACTION'))], ephemeral: true });
+      return interaction.editReply({ embeds: [errorEmbed(t('MOD_SELF_ACTION'), t('MOD_SELF_ACTION'))] });
     }
 
     const targetStr = user.tag + ' (`' + user.id + '`)';
@@ -208,7 +234,7 @@ module.exports = {
         .setEmoji(emojis.cross)
     );
 
-    await interaction.reply({ embeds: [confirm], components: [row] });
+    await interaction.editReply({ embeds: [confirm], components: [row] });
     const msg = await interaction.fetchReply();
 
     const collector = msg.createMessageComponentCollector({ time: 30000 });
