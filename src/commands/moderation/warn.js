@@ -36,6 +36,20 @@ function formatWarningList(warns, t) {
   return lines.join('\n') || '\u200b';
 }
 
+async function assignWarnedRole(member) {
+  const role = member.guild.roles.cache.find(role => role.name.toLowerCase() === 'warned');
+  if (!role) return 'Role "warned" not found';
+  if (member.roles.cache.has(role.id)) return 'Already assigned';
+
+  try {
+    await member.roles.add(role, 'Assigned after warning');
+    return 'Assigned';
+  } catch (error) {
+    console.error('Could not assign warned role to ' + member.id + ':', error);
+    return 'Failed: ' + (error.message || 'check Manage Roles permission and role hierarchy');
+  }
+}
+
 module.exports = {
   name: 'warn',
   description: 'Warn a member, view warnings, or clear warnings',
@@ -139,11 +153,13 @@ module.exports = {
         try {
           await Warning.addWarning(message.guild.id, member.id, message.author.id, reason);
           const total = (await Warning.getWarnings(message.guild.id, member.id)).length;
+          const warnedRoleStatus = await assignWarnedRole(member);
 
           const logEmbed = modEmbed(emojis.warn, t('MOD_WARN_TITLE'), [
             { name: emojis.user + ' Target', value: targetStr, inline: true },
             { name: emojis.gavel + ' Moderator', value: message.author.tag, inline: true },
             { name: emojis.chart + ' Total Warnings', value: '' + total, inline: true },
+            { name: 'Warned Role', value: warnedRoleStatus, inline: true },
             { name: emojis.tag + ' Reason', value: reason, inline: false },
           ], { color: COLORS.warning, thumbnail: member.user.displayAvatarURL({ dynamic: true }) });
 
@@ -208,7 +224,11 @@ module.exports = {
     const reason = interaction.options.getString('reason') || 'No reason provided';
     const member = await interaction.guild.members.fetch(user.id).catch(() => null);
 
-    if (member && member.id === interaction.user.id) {
+    if (!member) {
+      return interaction.editReply({ embeds: [errorEmbed(t('MOD_WARN_TITLE', 'Error'), 'That user is not a member of this server.')] });
+    }
+
+    if (member.id === interaction.user.id) {
       return interaction.editReply({ embeds: [errorEmbed(t('MOD_SELF_ACTION'), t('MOD_SELF_ACTION'))] });
     }
 
@@ -253,11 +273,13 @@ module.exports = {
         try {
           await Warning.addWarning(interaction.guild.id, user.id, interaction.user.id, reason);
           const total = (await Warning.getWarnings(interaction.guild.id, user.id)).length;
+          const warnedRoleStatus = await assignWarnedRole(member);
 
           const logEmbed = modEmbed(emojis.warn, t('MOD_WARN_TITLE'), [
             { name: emojis.user + ' Target', value: targetStr, inline: true },
             { name: emojis.gavel + ' Moderator', value: interaction.user.tag, inline: true },
             { name: emojis.chart + ' Total Warnings', value: '' + total, inline: true },
+            { name: 'Warned Role', value: warnedRoleStatus, inline: true },
             { name: emojis.tag + ' Reason', value: reason, inline: false },
           ], { color: COLORS.warning, thumbnail: user.displayAvatarURL({ dynamic: true }) });
 
