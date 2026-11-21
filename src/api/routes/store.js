@@ -1,47 +1,41 @@
 const express = require('express');
-const crypto = require('crypto');
 const router = express.Router();
 const productStore = require('../data/productStore');
 const store = require('../data/store');
 
-function getBearerUser(req) {
+async function getBearerUser(req) {
   const authorization = req.headers.authorization || '';
-  if (!authorization.startsWith('Bearer ')) return null;
+  const dashboardUrl = (process.env.FRONTEND_URL || process.env.DASHBOARD_URL || '').replace(/\/+$/, '');
+  if (!authorization.startsWith('Bearer ') || !dashboardUrl) return null;
 
-  const [payload, signature, extra] = authorization.slice(7).split('.');
-  if (!payload || !signature || extra !== undefined) return null;
+  const response = await fetch(`${dashboardUrl}/api/auth/me`, {
+    headers: { Authorization: authorization },
+    cache: 'no-store',
+  });
+  if (!response.ok) return null;
 
-  const secret = process.env.OAUTH_SIGNING_SECRET ||
-    process.env.DISCORD_CLIENT_SECRET ||
-    process.env.OAUTH_CLIENT_SECRET ||
-    'fallback-dev-secret';
-  const expected = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
-  const actualBuffer = Buffer.from(signature);
-  const expectedBuffer = Buffer.from(expected);
-  if (actualBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(actualBuffer, expectedBuffer)) return null;
-
-  try {
-    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')).user || null;
-  } catch {
-    return null;
-  }
+  const payload = await response.json();
+  return payload?.user?.id ? payload.user : null;
 }
 
-function storeAuth(req, res, next) {
+async function storeAuth(req, res, next) {
   if (req.session?.user) {
     req.dashboardUser = req.session.user;
     return next();
   }
   if (req.session?.adminAuth) return next();
 
-  const user = getBearerUser(req);
-  if (user) {
-    req.dashboardUser = user;
-    return next();
+  try {
+    const user = await getBearerUser(req);
+    if (user) {
+      req.dashboardUser = user;
+      return next();
+    }
+  } catch {
+    return res.status(503).json({ error: 'Unable to validate dashboard login' });
   }
   return res.status(401).json({ error: 'Dashboard login required' });
 }
-
 router.get('/', storeAuth, async (req, res) => {
   const records = await productStore.getAllProducts();
   const products = await Promise.all(records.map(async (product) => ({
