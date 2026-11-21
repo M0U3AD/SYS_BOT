@@ -1,10 +1,44 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const productStore = require('../data/productStore');
 const store = require('../data/store');
 
+function getBearerUser(req) {
+  const authorization = req.headers.authorization || '';
+  if (!authorization.startsWith('Bearer ')) return null;
+
+  const [payload, signature, extra] = authorization.slice(7).split('.');
+  if (!payload || !signature || extra !== undefined) return null;
+
+  const secret = process.env.OAUTH_SIGNING_SECRET ||
+    process.env.DISCORD_CLIENT_SECRET ||
+    process.env.OAUTH_CLIENT_SECRET ||
+    'fallback-dev-secret';
+  const expected = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  const actualBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (actualBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(actualBuffer, expectedBuffer)) return null;
+
+  try {
+    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')).user || null;
+  } catch {
+    return null;
+  }
+}
+
 function storeAuth(req, res, next) {
-  if (req.session && (req.session.user || req.session.adminAuth)) return next();
+  if (req.session?.user) {
+    req.dashboardUser = req.session.user;
+    return next();
+  }
+  if (req.session?.adminAuth) return next();
+
+  const user = getBearerUser(req);
+  if (user) {
+    req.dashboardUser = user;
+    return next();
+  }
   return res.status(401).json({ error: 'Dashboard login required' });
 }
 
@@ -25,7 +59,7 @@ router.post('/', storeAuth, async (req, res) => {
     name,
     description: description || '',
     details: details || '',
-    addedBy: req.session.user?.username || 'Dashboard',
+    addedBy: req.dashboardUser?.username || 'Dashboard',
   });
 
   store.addLog('Product Added', `Product "${product.name}" added via dashboard`, 'system');
