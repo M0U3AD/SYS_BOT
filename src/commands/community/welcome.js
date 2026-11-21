@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
 const { getGuildConfig, updateGuildConfig } = require('../../database/utils/GuildConfig');
+const welcomeMessage = require('../../utils/welcomeMessage');
 
 module.exports = {
   name: 'welcome',
@@ -62,7 +63,7 @@ module.exports = {
         .replace(/{user}/g, `<@${message.author.id}>`)
         .replace(/{server}/g, message.guild.name)
         .replace(/{membercount}/g, message.guild.memberCount);
-      return message.reply({ embeds: [infoEmbed('Welcome Test', msg)] });
+      return message.reply(welcomeMessage(message.member, msg, config.welcome.embedColor || config.embedColor));
     }
 
     return message.reply({ embeds: [infoEmbed('Welcome Config',
@@ -100,7 +101,8 @@ module.exports = {
         .replace(/{user}/g, `<@${interaction.user.id}>`)
         .replace(/{server}/g, interaction.guild.name)
         .replace(/{membercount}/g, interaction.guild.memberCount);
-      return interaction.reply({ embeds: [infoEmbed('Welcome Test', msg)], ephemeral: true });
+      const member = await interaction.guild.members.fetch(interaction.user.id);
+      return interaction.reply({ ...welcomeMessage(member, msg, config.welcome.embedColor || config.embedColor), ephemeral: true });
     }
   },
 };

@@ -1,5 +1,5 @@
-const { EmbedBuilder } = require('discord.js');
 const { getGuildConfig } = require('../../database/utils/GuildConfig');
+const welcomeMessage = require('../../utils/welcomeMessage');
 
 module.exports = {
   name: 'guildMemberAdd',
@@ -26,16 +26,7 @@ module.exports = {
           .replace(/{server}/g, member.guild.name)
           .replace(/{membercount}/g, member.guild.memberCount);
 
-        if (config.welcome.embedColor) {
-          const embed = new EmbedBuilder()
-            .setColor(config.welcome.embedColor)
-            .setDescription(msg)
-            .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-            .setTimestamp();
-          ch.send({ embeds: [embed] });
-        } else {
-          ch.send(msg);
-        }
+        ch.send(welcomeMessage(member, msg, config.welcome.embedColor || config.embedColor));
       }
     }
 
