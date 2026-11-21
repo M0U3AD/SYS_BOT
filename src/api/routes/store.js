@@ -5,11 +5,15 @@ const store = require('../data/store');
 
 async function getBearerUser(req) {
   const authorization = req.headers.authorization || '';
+  const cookie = req.headers.cookie || '';
   const dashboardUrl = (process.env.FRONTEND_URL || process.env.DASHBOARD_URL || '').replace(/\/+$/, '');
-  if (!authorization.startsWith('Bearer ') || !dashboardUrl) return null;
+  if ((!authorization.startsWith('Bearer ') && !cookie) || !dashboardUrl) return null;
 
+  const authHeaders = authorization.startsWith('Bearer ')
+    ? { Authorization: authorization }
+    : { Cookie: cookie };
   const response = await fetch(`${dashboardUrl}/api/auth/me`, {
-    headers: { Authorization: authorization },
+    headers: authHeaders,
     cache: 'no-store',
   });
   if (!response.ok) return null;
