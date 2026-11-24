@@ -19,6 +19,7 @@ const guildSchema = new mongoose.Schema({
     enabled: { type: Boolean, default: false },
     channelId: { type: String, default: '' },
     message: { type: String, default: 'Welcome to **{server}**, {user}! You are member #{membercount}.' },
+    imageUrl: { type: String, default: '' },
     embedColor: { type: String, default: '' },
     dmMessage: { type: String, default: '' },
   },

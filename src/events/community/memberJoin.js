@@ -26,7 +26,7 @@ module.exports = {
           .replace(/{server}/g, member.guild.name)
           .replace(/{membercount}/g, member.guild.memberCount);
 
-        ch.send(welcomeMessage(member, msg, config.welcome.embedColor || config.embedColor));
+        ch.send(welcomeMessage(member, msg, config.welcome.embedColor || config.embedColor, config.welcome.imageUrl));
       }
     }
 
