@@ -131,6 +131,16 @@ async function handleTicketClaim(interaction, client) {
   var Ticket = require('../database/models/Ticket');
   var ticket = await Ticket.findOne({ channelId: interaction.channel.id, status: 'open' });
   if (!ticket) return interaction.reply({ content: 'Ticket not found.', ephemeral: true });
+  var guildConfig = await getGuildConfig(interaction.guild.id);
+  var supportRoleId = guildConfig.tickets?.supportRoleId;
+  var isAdmin = interaction.memberPermissions?.has('ManageGuild');
+  var isSupport = supportRoleId && interaction.member?.roles?.cache?.has(supportRoleId);
+  if (!isSupport && !isAdmin) {
+    return interaction.reply({
+      content: supportRoleId ? 'Only the configured support team can claim tickets.' : 'The ticket support role is not configured. Ask an administrator to set it up.',
+      ephemeral: true,
+    });
+  }
   ticket.claimedBy = interaction.user.id; await ticket.save();
   await interaction.reply({ embeds: [new EmbedBuilder().setColor('#57F287').setDescription('🙋 Ticket claimed by ' + interaction.user.username).setTimestamp()] });
 }
