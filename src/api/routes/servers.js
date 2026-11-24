@@ -5,6 +5,7 @@ const store = require('../data/store');
 const { getGuildConfig, updateGuildConfig } = require('../../database/utils/GuildConfig');
 
 function canManageGuild(req, guildId) {
+  if (req.session.admin) return true;
   const userGuild = (req.session.guilds || []).find(guild => guild.id === guildId);
   if (!userGuild) return false;
 
@@ -18,6 +19,19 @@ function isTextChannel(channel) {
 
 module.exports = function (client) {
   router.get('/', authMiddleware, (req, res) => {
+    if (req.session.admin) {
+      const servers = client.guilds.cache.map(guild => ({
+        id: guild.id,
+        name: guild.name,
+        icon: guild.icon,
+        owner: guild.ownerId,
+        permissions: '8',
+        botJoined: true,
+        memberCount: guild.memberCount,
+      }));
+      return res.json({ servers });
+    }
+
     const userGuilds = req.session.guilds || [];
 
     const botGuildIds = new Set(client.guilds.cache.map(g => g.id));

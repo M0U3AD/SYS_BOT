@@ -4,9 +4,13 @@ const SIGNING_SECRET = process.env.OAUTH_SIGNING_SECRET || process.env.DISCORD_C
 
 function bearerSession(req) {
   const authorization = req.headers.authorization || '';
-  if (!authorization.startsWith('Bearer ') || !SIGNING_SECRET) return null;
+  const cookie = (req.headers.cookie || '').match(/(?:^|;\s*)sb_session=([^;]+)/)?.[1];
+  const token = authorization.startsWith('Bearer ')
+    ? authorization.slice(7)
+    : cookie;
+  if (!token || !SIGNING_SECRET) return null;
 
-  const [data, signature] = authorization.slice(7).split('.');
+  const [data, signature] = token.split('.');
   if (!data || !signature) return null;
 
   const expected = crypto.createHmac('sha256', SIGNING_SECRET).update(data).digest();
@@ -32,6 +36,7 @@ function authMiddleware(req, res, next) {
   if (payload) {
     req.session.user = payload.user;
     req.session.guilds = payload.guilds;
+    req.session.admin = payload.admin === true;
     return next();
   }
 
