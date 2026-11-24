@@ -90,6 +90,8 @@ const guildSchema = new mongoose.Schema({
       antiSpam: { type: Boolean, default: false },
       antiLink: { type: Boolean, default: false },
       antiInvite: { type: Boolean, default: false },
+      antiScam: { type: Boolean, default: false },
+      antiNudity: { type: Boolean, default: false },
       badWords: { type: [String], default: [] },
       maxMentions: { type: Number, default: 5 },
       muteRoleId: { type: String, default: '' },

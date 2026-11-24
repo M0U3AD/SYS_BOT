@@ -50,6 +50,8 @@ function buildFeaturePanel(feature, config) {
         { name: 'Anti-Spam', value: config.moderation.automod.antiSpam ? '🟢 ON' : '🔴 OFF', inline: true },
         { name: 'Anti-Link', value: config.moderation.automod.antiLink ? '🟢 ON' : '🔴 OFF', inline: true },
         { name: 'Anti-Invite', value: config.moderation.automod.antiInvite ? '🟢 ON' : '🔴 OFF', inline: true },
+        { name: 'Scam Filter', value: config.moderation.automod.antiScam ? '🟢 ON' : '🔴 OFF', inline: true },
+        { name: 'Nudity Text Filter', value: config.moderation.automod.antiNudity ? '🟢 ON' : '🔴 OFF', inline: true },
         { name: 'Bad Words', value: (config.moderation.automod.badWords ? config.moderation.automod.badWords.length : 0) + ' word(s)', inline: true },
         { name: 'Max Mentions', value: '' + (config.moderation.automod.maxMentions || 5), inline: true },
         { name: 'Warn Auto-Mute', value: config.moderation.warnAutoMute > 0 ? 'After ' + config.moderation.warnAutoMute + ' warns' : 'Disabled', inline: true },

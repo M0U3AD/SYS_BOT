@@ -2,6 +2,29 @@ const { EmbedBuilder } = require('discord.js');
 const { getGuildConfig } = require('../../database/utils/GuildConfig');
 
 const spamTracker = new Map();
+const scamPatterns = [
+  /\bfree\s+(?:discord\s+)?nitro\b/i,
+  /\b(?:claim|redeem|collect)\s+(?:your\s+)?(?:free\s+)?(?:prize|reward|nitro|airdrop)\b/i,
+  /\b(?:double|triple)\s+your\s+(?:crypto|bitcoin|btc|ethereum|eth)\b/i,
+  /\b(?:seed phrase|wallet connect)\b/i,
+  /\bverify\s+your\s+(?:discord|steam)\s+account\b/i,
+];
+const nudityPattern = /\b(?:nudes?|naked\s+(?:pics?|photos?|pictures?)|explicit\s+(?:pics?|photos?|images?)|pornographic\s+(?:images?|photos?))\b/i;
+
+async function removeFlaggedContent(message, logChannel, filterName) {
+  try { await message.delete(); } catch {}
+
+  const reply = await message.channel.send({
+    embeds: [new EmbedBuilder().setColor('#FEE75C').setDescription(`**${message.author.tag}**, your message was removed by the ${filterName} filter.`).setTimestamp()],
+  }).catch(() => null);
+  if (reply) setTimeout(() => reply.delete().catch(() => {}), 5000);
+
+  if (logChannel) {
+    logChannel.send({
+      embeds: [new EmbedBuilder().setColor('#FEE75C').setTitle('AutoMod: ' + filterName).setDescription(`**${message.author.tag}** had a message removed in <#${message.channel.id}>.`).setTimestamp()],
+    }).catch(() => {});
+  }
+}
 
 module.exports = {
   name: 'messageCreate',
@@ -65,6 +88,16 @@ module.exports = {
         }
         return;
       }
+    }
+
+    if (a.antiScam && scamPatterns.some(pattern => pattern.test(message.content))) {
+      await removeFlaggedContent(message, logChannel, 'Scam');
+      return;
+    }
+
+    if (a.antiNudity && nudityPattern.test(message.content)) {
+      await removeFlaggedContent(message, logChannel, 'Nudity Text');
+      return;
     }
 
     // Bad Words

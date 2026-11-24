@@ -132,7 +132,7 @@ async function handleTicketClaim(interaction, client) {
   var ticket = await Ticket.findOne({ channelId: interaction.channel.id, status: 'open' });
   if (!ticket) return interaction.reply({ content: 'Ticket not found.', ephemeral: true });
   ticket.claimedBy = interaction.user.id; await ticket.save();
-  await interaction.reply({ embeds: [new EmbedBuilder().setColor('#57F287').setDescription('🙋 Ticket claimed by ' + interaction.user).setTimestamp()] });
+  await interaction.reply({ embeds: [new EmbedBuilder().setColor('#57F287').setDescription('🙋 Ticket claimed by ' + interaction.user.username).setTimestamp()] });
 }
 
 async function handleApplicationReview(interaction, client) {

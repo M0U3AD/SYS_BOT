@@ -7,7 +7,7 @@ const { getT } = require('../../i18n');
 module.exports = {
   name: 'automod',
   description: 'Configure auto-moderation rules',
-  usage: '!automod enable | !automod disable | !automod config',
+  usage: '!automod enable | !automod disable | !automod config | !automod scam|nudity on|off',
   slash: new SlashCommandBuilder()
     .setName('automod')
     .setDescription('Configure auto-moderation')
@@ -19,6 +19,8 @@ module.exports = {
       .addBooleanOption(opt => opt.setName('anti_spam').setDescription('Enable anti-spam'))
       .addBooleanOption(opt => opt.setName('anti_link').setDescription('Enable anti-link'))
       .addBooleanOption(opt => opt.setName('anti_invite').setDescription('Enable anti-invite'))
+      .addBooleanOption(opt => opt.setName('anti_scam').setDescription('Filter likely scam messages'))
+      .addBooleanOption(opt => opt.setName('anti_nudity').setDescription('Filter explicit nudity text'))
       .addIntegerOption(opt => opt.setName('max_mentions').setDescription('Max mentions before action').setMinValue(1).setMaxValue(20))
       .addStringOption(opt => opt.setName('bad_words').setDescription('Comma-separated bad words'))
       .addChannelOption(opt => opt.setName('log_channel').setDescription('Channel for automod logs')))
@@ -56,12 +58,24 @@ module.exports = {
         { name: emojis.bolt + ' Anti-Spam', value: t('MOD_AUTOMOD_ON', a.antiSpam), inline: true },
         { name: emojis.link + ' Anti-Link', value: t('MOD_AUTOMOD_ON', a.antiLink), inline: true },
         { name: emojis.link + ' Anti-Invite', value: t('MOD_AUTOMOD_ON', a.antiInvite), inline: true },
+        { name: 'Scam Filter', value: t('MOD_AUTOMOD_ON', a.antiScam), inline: true },
+        { name: 'Nudity Text Filter', value: t('MOD_AUTOMOD_ON', a.antiNudity), inline: true },
         { name: emojis.warning + ' Max Mentions', value: '' + a.maxMentions, inline: true },
         { name: emojis.trash + ' Bad Words', value: a.badWords.length + ' word(s)', inline: true },
         { name: emojis.channel + ' Log Channel', value: a.logChannelId ? '<#' + a.logChannelId + '>' : 'Not set', inline: true },
       ], { color: COLORS.primary });
 
       return message.reply({ embeds: [embed] });
+    }
+
+    if (args[0] === 'scam' || args[0] === 'nudity') {
+      const enabled = args[1] === 'on' ? true : args[1] === 'off' ? false : null;
+      if (enabled === null) {
+        return message.reply({ embeds: [errorEmbed('Invalid Usage', '`!automod scam on|off` or `!automod nudity on|off`')] });
+      }
+      const setting = args[0] === 'scam' ? 'antiScam' : 'antiNudity';
+      await updateGuildConfig(message.guild.id, { ['moderation.automod.' + setting]: enabled });
+      return message.reply({ embeds: [successEmbed('AutoMod Updated', args[0] + ' filter ' + (enabled ? 'enabled.' : 'disabled.'))] });
     }
 
     if (args[0] === 'word') {
@@ -107,6 +121,8 @@ module.exports = {
       const antiSpam = interaction.options.getBoolean('anti_spam');
       const antiLink = interaction.options.getBoolean('anti_link');
       const antiInvite = interaction.options.getBoolean('anti_invite');
+      const antiScam = interaction.options.getBoolean('anti_scam');
+      const antiNudity = interaction.options.getBoolean('anti_nudity');
       const maxMentions = interaction.options.getInteger('max_mentions');
       const badWords = interaction.options.getString('bad_words');
       const logChannel = interaction.options.getChannel('log_channel');
@@ -114,6 +130,8 @@ module.exports = {
       if (antiSpam !== null) update['moderation.automod.antiSpam'] = antiSpam;
       if (antiLink !== null) update['moderation.automod.antiLink'] = antiLink;
       if (antiInvite !== null) update['moderation.automod.antiInvite'] = antiInvite;
+      if (antiScam !== null) update['moderation.automod.antiScam'] = antiScam;
+      if (antiNudity !== null) update['moderation.automod.antiNudity'] = antiNudity;
       if (maxMentions !== null) update['moderation.automod.maxMentions'] = maxMentions;
       if (badWords) update['moderation.automod.badWords'] = badWords.split(',').map(function(w) { return w.trim().toLowerCase(); });
       if (logChannel) update['moderation.automod.logChannelId'] = logChannel.id;
@@ -127,6 +145,8 @@ module.exports = {
           { name: emojis.bolt + ' Anti-Spam', value: t('MOD_AUTOMOD_ON', a.antiSpam), inline: true },
           { name: emojis.link + ' Anti-Link', value: t('MOD_AUTOMOD_ON', a.antiLink), inline: true },
           { name: emojis.link + ' Anti-Invite', value: t('MOD_AUTOMOD_ON', a.antiInvite), inline: true },
+          { name: 'Scam Filter', value: t('MOD_AUTOMOD_ON', a.antiScam), inline: true },
+          { name: 'Nudity Text Filter', value: t('MOD_AUTOMOD_ON', a.antiNudity), inline: true },
           { name: emojis.warning + ' Max Mentions', value: '' + a.maxMentions, inline: true },
           { name: emojis.trash + ' Bad Words', value: a.badWords.length + ' word(s)', inline: true },
         ], { color: COLORS.primary });
