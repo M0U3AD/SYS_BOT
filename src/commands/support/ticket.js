@@ -4,10 +4,68 @@ const { getGuildConfig, updateGuildConfig } = require('../../database/utils/Guil
 const Ticket = require('../../database/models/Ticket');
 const config = require('../../../config.json');
 
+function closeAllButtons(userId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('ticket_close_all_confirm_' + userId).setLabel('Close All Tickets').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('ticket_close_all_cancel_' + userId).setLabel('Cancel').setStyle(ButtonStyle.Secondary)
+  );
+}
+
+async function closeAllTickets(guild, moderatorId) {
+  const tickets = await Ticket.find({ guildId: guild.id, status: 'open' });
+  const guildConfig = await getGuildConfig(guild.id);
+  const transcriptChannel = guildConfig.tickets.transcriptChannelId
+    ? guild.channels.cache.get(guildConfig.tickets.transcriptChannelId)
+    : null;
+  let deletedChannels = 0;
+
+  for (const ticket of tickets) {
+    const channel = guild.channels.cache.get(ticket.channelId);
+    let transcript = ticket.transcript || '';
+
+    if (channel) {
+      try {
+        const messages = await channel.messages.fetch({ limit: 100 });
+        transcript = messages.reverse().map(message => `[${new Date(message.createdTimestamp).toLocaleString()}] ${message.author.tag}: ${message.content || '(no text)'}`).join('\n');
+      } catch (error) {
+        console.error('Could not capture transcript for ticket ' + ticket.channelId + ':', error);
+      }
+    }
+
+    ticket.status = 'closed';
+    ticket.closedBy = moderatorId;
+    ticket.closedAt = new Date();
+    ticket.transcript = transcript;
+    await ticket.save();
+
+    if (transcriptChannel && channel) {
+      await transcriptChannel.send({
+        embeds: [new EmbedBuilder()
+          .setColor('#ED4245')
+          .setTitle('🎫 Ticket Transcript')
+          .setDescription(`Ticket by <@${ticket.creatorId}> — Closed by <@${moderatorId}>`)
+          .addFields({ name: 'Transcript', value: transcript.substring(0, 1024) || 'Empty' })
+          .setTimestamp()],
+      }).catch(error => console.error('Could not post ticket transcript:', error));
+    }
+
+    if (channel) {
+      try {
+        await channel.delete('Ticket closed by bulk action');
+        deletedChannels++;
+      } catch (error) {
+        console.error('Could not delete ticket channel ' + ticket.channelId + ':', error);
+      }
+    }
+  }
+
+  return { closed: tickets.length, deletedChannels };
+}
+
 module.exports = {
   name: 'ticket',
   description: 'Manage the support ticket system',
-  usage: '!ticket setup <#channel> <@role> | !ticket close | !ticket add <@user> | !ticket list',
+  usage: '!ticket setup <#channel> <@role> | !ticket close | !ticket close-all | !ticket add <@user> | !ticket list',
   slash: new SlashCommandBuilder()
     .setName('ticket')
     .setDescription('Ticket system')
@@ -18,6 +76,7 @@ module.exports = {
       .addRoleOption(opt => opt.setName('role').setDescription('Support role').setRequired(true))
       .addChannelOption(opt => opt.setName('transcript_channel').setDescription('Channel for transcripts')))
     .addSubcommand(sub => sub.setName('close').setDescription('Close current ticket'))
+    .addSubcommand(sub => sub.setName('close-all').setDescription('Close and delete all open tickets'))
     .addSubcommand(sub => sub
       .setName('add')
       .setDescription('Add user to ticket')
@@ -75,6 +134,38 @@ module.exports = {
       return message.reply({ embeds: [infoEmbed('Open Tickets', list)] });
     }
 
+    if (args[0] === 'close-all') {
+      const count = await Ticket.countDocuments({ guildId: message.guild.id, status: 'open' });
+      if (!count) return message.reply({ embeds: [infoEmbed('Tickets', 'No open tickets to close.')] });
+
+      const prompt = await message.reply({
+        embeds: [infoEmbed('Close All Tickets?', `This will close and delete **${count}** open ticket channel(s). Confirm to continue.`)],
+        components: [closeAllButtons(message.author.id)],
+      });
+      const collector = prompt.createMessageComponentCollector({ time: 30000 });
+      collector.on('collect', async interaction => {
+        if (interaction.user.id !== message.author.id) {
+          return interaction.reply({ content: 'This confirmation is not for you.', ephemeral: true });
+        }
+        collector.stop('handled');
+        if (interaction.customId === 'ticket_close_all_cancel_' + message.author.id) {
+          return interaction.update({ embeds: [infoEmbed('Cancelled', 'Open tickets were left unchanged.')], components: [] });
+        }
+        try {
+          const result = await closeAllTickets(message.guild, message.author.id);
+          return interaction.update({ embeds: [successEmbed('Tickets Closed', `Closed **${result.closed}** ticket(s) and deleted **${result.deletedChannels}** channel(s).`)], components: [] });
+        } catch (error) {
+          console.error('Bulk ticket close failed:', error);
+          return interaction.update({ embeds: [errorEmbed('Close All Failed', 'Could not close all tickets. Check the bot logs.')], components: [] });
+        }
+      });
+      collector.on('end', async (_collected, reason) => {
+        if (reason !== 'time') return;
+        await prompt.edit({ embeds: [errorEmbed('Confirmation Expired', 'Open tickets were left unchanged.')], components: [] }).catch(() => {});
+      });
+      return;
+    }
+
     if (args[0] === 'add') {
       const member = message.mentions.members.first();
       if (!member) return message.reply({ embeds: [errorEmbed('Invalid Usage', '`!ticket add <@user>`')] });
@@ -82,7 +173,7 @@ module.exports = {
       return message.reply({ embeds: [successEmbed('Added', `${member} added to this ticket.`)] });
     }
 
-    return message.reply({ embeds: [errorEmbed('Invalid Usage', '`!ticket setup|close|add|list`')] });
+    return message.reply({ embeds: [errorEmbed('Invalid Usage', '`!ticket setup|close|close-all|add|list`')] });
   },
   async slashExecute(interaction, client) {
     const sub = interaction.options.getSubcommand();
@@ -132,6 +223,39 @@ module.exports = {
       if (tickets.length === 0) return interaction.reply({ embeds: [infoEmbed('Tickets', 'None open.')], ephemeral: true });
       const list = tickets.map(t => `<#${t.channelId}> — <@${t.creatorId}>`).join('\n');
       return interaction.reply({ embeds: [infoEmbed('Open Tickets', list)], ephemeral: true });
+    }
+
+    if (sub === 'close-all') {
+      const count = await Ticket.countDocuments({ guildId: interaction.guild.id, status: 'open' });
+      if (!count) return interaction.reply({ embeds: [infoEmbed('Tickets', 'No open tickets to close.')], ephemeral: true });
+
+      await interaction.reply({
+        embeds: [infoEmbed('Close All Tickets?', `This will close and delete **${count}** open ticket channel(s). Confirm to continue.`)],
+        components: [closeAllButtons(interaction.user.id)],
+        ephemeral: true,
+      });
+      const prompt = await interaction.fetchReply();
+      const collector = prompt.createMessageComponentCollector({ time: 30000 });
+      collector.on('collect', async button => {
+        if (button.user.id !== interaction.user.id) {
+          return button.reply({ content: 'This confirmation is not for you.', ephemeral: true });
+        }
+        collector.stop('handled');
+        if (button.customId === 'ticket_close_all_cancel_' + interaction.user.id) {
+          return button.update({ embeds: [infoEmbed('Cancelled', 'Open tickets were left unchanged.')], components: [] });
+        }
+        try {
+          const result = await closeAllTickets(interaction.guild, interaction.user.id);
+          return button.update({ embeds: [successEmbed('Tickets Closed', `Closed **${result.closed}** ticket(s) and deleted **${result.deletedChannels}** channel(s).`)], components: [] });
+        } catch (error) {
+          console.error('Bulk ticket close failed:', error);
+          return button.update({ embeds: [errorEmbed('Close All Failed', 'Could not close all tickets. Check the bot logs.')], components: [] });
+        }
+      });
+      collector.on('end', async (_collected, reason) => {
+        if (reason !== 'time') return;
+        await prompt.edit({ embeds: [errorEmbed('Confirmation Expired', 'Open tickets were left unchanged.')], components: [] }).catch(() => {});
+      });
     }
   },
 };
