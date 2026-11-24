@@ -11,13 +11,20 @@ function closeAllButtons(userId) {
   );
 }
 
+async function findClosableTickets(guildId, guild) {
+  const tickets = await Ticket.find({ guildId, status: { $in: ['open', 'closed'] } });
+  return tickets.filter(ticket => ticket.status === 'open' || guild.channels.cache.has(ticket.channelId));
+}
+
 async function closeAllTickets(guild, moderatorId) {
-  const tickets = await Ticket.find({ guildId: guild.id, status: 'open' });
+  const tickets = await findClosableTickets(guild.id, guild);
   const guildConfig = await getGuildConfig(guild.id);
   const transcriptChannel = guildConfig.tickets.transcriptChannelId
     ? guild.channels.cache.get(guildConfig.tickets.transcriptChannelId)
     : null;
+  let closed = 0;
   let deletedChannels = 0;
+  let failed = 0;
 
   for (const ticket of tickets) {
     const channel = guild.channels.cache.get(ticket.channelId);
@@ -26,27 +33,25 @@ async function closeAllTickets(guild, moderatorId) {
     if (channel) {
       try {
         const messages = await channel.messages.fetch({ limit: 100 });
-        transcript = messages.reverse().map(message => `[${new Date(message.createdTimestamp).toLocaleString()}] ${message.author.tag}: ${message.content || '(no text)'}`).join('\n');
+        transcript = messages.reverse().map(message => '[' + new Date(message.createdTimestamp).toLocaleString() + '] ' + message.author.tag + ': ' + (message.content || '(no text)')).join('\n');
       } catch (error) {
         console.error('Could not capture transcript for ticket ' + ticket.channelId + ':', error);
       }
     }
 
-    ticket.status = 'closed';
-    ticket.closedBy = moderatorId;
-    ticket.closedAt = new Date();
-    ticket.transcript = transcript;
-    await ticket.save();
-
-    if (transcriptChannel && channel) {
-      await transcriptChannel.send({
-        embeds: [new EmbedBuilder()
-          .setColor('#ED4245')
-          .setTitle('🎫 Ticket Transcript')
-          .setDescription(`Ticket by <@${ticket.creatorId}> — Closed by <@${moderatorId}>`)
-          .addFields({ name: 'Transcript', value: transcript.substring(0, 1024) || 'Empty' })
-          .setTimestamp()],
-      }).catch(error => console.error('Could not post ticket transcript:', error));
+    if (transcriptChannel && channel && typeof transcriptChannel.send === 'function') {
+      try {
+        await transcriptChannel.send({
+          embeds: [new EmbedBuilder()
+            .setColor('#ED4245')
+            .setTitle('Ticket Transcript')
+            .setDescription('Ticket by <@' + ticket.creatorId + '> - Closed by <@' + moderatorId + '>')
+            .addFields({ name: 'Transcript', value: transcript.substring(0, 1024) || 'Empty' })
+            .setTimestamp()],
+        });
+      } catch (error) {
+        console.error('Could not post ticket transcript:', error);
+      }
     }
 
     if (channel) {
@@ -55,13 +60,26 @@ async function closeAllTickets(guild, moderatorId) {
         deletedChannels++;
       } catch (error) {
         console.error('Could not delete ticket channel ' + ticket.channelId + ':', error);
+        failed++;
+        continue;
       }
+    }
+
+    ticket.status = 'closed';
+    ticket.closedBy = moderatorId;
+    ticket.closedAt = new Date();
+    ticket.transcript = transcript;
+    try {
+      await ticket.save();
+      closed++;
+    } catch (error) {
+      console.error('Could not save closed ticket ' + ticket.channelId + ':', error);
+      failed++;
     }
   }
 
-  return { closed: tickets.length, deletedChannels };
+  return { closed, deletedChannels, failed };
 }
-
 module.exports = {
   name: 'ticket',
   description: 'Manage the support ticket system',
@@ -135,11 +153,11 @@ module.exports = {
     }
 
     if (args[0] === 'close-all') {
-      const count = await Ticket.countDocuments({ guildId: message.guild.id, status: 'open' });
+      const count = (await findClosableTickets(message.guild.id, message.guild)).length;
       if (!count) return message.reply({ embeds: [infoEmbed('Tickets', 'No open tickets to close.')] });
 
       const prompt = await message.reply({
-        embeds: [infoEmbed('Close All Tickets?', `This will close and delete **${count}** open ticket channel(s). Confirm to continue.`)],
+        embeds: [infoEmbed('Close All Tickets?', `This will close and delete **${count}** ticket channel(s), including any left behind by an earlier failed close. Confirm to continue.`)],
         components: [closeAllButtons(message.author.id)],
       });
       const collector = prompt.createMessageComponentCollector({ time: 30000 });
@@ -153,7 +171,8 @@ module.exports = {
         }
         try {
           const result = await closeAllTickets(message.guild, message.author.id);
-          return interaction.update({ embeds: [successEmbed('Tickets Closed', `Closed **${result.closed}** ticket(s) and deleted **${result.deletedChannels}** channel(s).`)], components: [] });
+          const failures = result.failed ? ` **${result.failed}** could not be fully closed; check the bot logs.` : '';
+          return interaction.update({ embeds: [successEmbed('Tickets Closed', `Closed **${result.closed}** ticket(s) and deleted **${result.deletedChannels}** channel(s).${failures}`)], components: [] });
         } catch (error) {
           console.error('Bulk ticket close failed:', error);
           return interaction.update({ embeds: [errorEmbed('Close All Failed', 'Could not close all tickets. Check the bot logs.')], components: [] });
@@ -226,11 +245,11 @@ module.exports = {
     }
 
     if (sub === 'close-all') {
-      const count = await Ticket.countDocuments({ guildId: interaction.guild.id, status: 'open' });
+      const count = (await findClosableTickets(interaction.guild.id, interaction.guild)).length;
       if (!count) return interaction.reply({ embeds: [infoEmbed('Tickets', 'No open tickets to close.')], ephemeral: true });
 
       await interaction.reply({
-        embeds: [infoEmbed('Close All Tickets?', `This will close and delete **${count}** open ticket channel(s). Confirm to continue.`)],
+        embeds: [infoEmbed('Close All Tickets?', `This will close and delete **${count}** ticket channel(s), including any left behind by an earlier failed close. Confirm to continue.`)],
         components: [closeAllButtons(interaction.user.id)],
         ephemeral: true,
       });
@@ -246,7 +265,8 @@ module.exports = {
         }
         try {
           const result = await closeAllTickets(interaction.guild, interaction.user.id);
-          return button.update({ embeds: [successEmbed('Tickets Closed', `Closed **${result.closed}** ticket(s) and deleted **${result.deletedChannels}** channel(s).`)], components: [] });
+          const failures = result.failed ? ` **${result.failed}** could not be fully closed; check the bot logs.` : '';
+          return button.update({ embeds: [successEmbed('Tickets Closed', `Closed **${result.closed}** ticket(s) and deleted **${result.deletedChannels}** channel(s).${failures}`)], components: [] });
         } catch (error) {
           console.error('Bulk ticket close failed:', error);
           return button.update({ embeds: [errorEmbed('Close All Failed', 'Could not close all tickets. Check the bot logs.')], components: [] });
