@@ -117,6 +117,7 @@ const guildSchema = new mongoose.Schema({
     levelUpChannelId: { type: String, default: '' },
     xpPerMessage: { type: Number, default: 15 },
     xpVariance: { type: Number, default: 10 },
+    voiceXpPerMinute: { type: Number, default: 5 },
     cooldown: { type: Number, default: 60 },
     ignoredChannels: { type: [String], default: [] },
   },

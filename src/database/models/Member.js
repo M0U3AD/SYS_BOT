@@ -5,6 +5,8 @@ const memberSchema = new mongoose.Schema({
   userId: { type: String, required: true },
   xp: { type: Number, default: 0 },
   level: { type: Number, default: 0 },
+  voiceXp: { type: Number, default: 0 },
+  voiceLevel: { type: Number, default: 0 },
   lastXpMessage: { type: Number, default: 0 },
   balance: { type: Number, default: 0 },
   bank: { type: Number, default: 0 },

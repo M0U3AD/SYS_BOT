@@ -88,6 +88,7 @@ function buildFeaturePanel(feature, config) {
       fields: [
         { name: 'Enabled', value: config.xp.enabled ? '🟢 ON' : '🔴 OFF', inline: true },
         { name: 'XP Per Message', value: '' + config.xp.xpPerMessage, inline: true },
+        { name: 'Voice XP Per Minute', value: '' + config.xp.voiceXpPerMinute, inline: true },
         { name: 'Cooldown', value: config.xp.cooldown + 's', inline: true },
         { name: 'Level Up Channel', value: config.xp.levelUpChannelId ? '<#' + config.xp.levelUpChannelId + '>' : 'Current channel', inline: true },
       ],

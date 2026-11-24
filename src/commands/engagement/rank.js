@@ -25,7 +25,7 @@ module.exports = {
 
     const embed = infoEmbed(
       `Rank — ${target.user.tag}`,
-      `**Level:** ${member.level}\n**XP:** ${member.xp.toLocaleString()}\n**Progress:** ${progress}% to next level\n**Messages:** ${member.totalMessages.toLocaleString()}`
+      `**Level:** ${member.level}\n**XP:** ${member.xp.toLocaleString()}\n**Progress:** ${progress}% to next level\n**Messages:** ${member.totalMessages.toLocaleString()}\n**Voice Level:** ${member.voiceLevel || 0}\n**Voice XP:** ${(member.voiceXp || 0).toLocaleString()}`
     ).setThumbnail(target.user.displayAvatarURL({ dynamic: true }));
 
     message.reply({ embeds: [embed] });
@@ -41,7 +41,7 @@ module.exports = {
 
     const embed = infoEmbed(
       `Rank — ${user.tag}`,
-      `**Level:** ${member.level}\n**XP:** ${member.xp.toLocaleString()}\n**Progress:** ${progress}% to next level\n**Messages:** ${member.totalMessages.toLocaleString()}`
+      `**Level:** ${member.level}\n**XP:** ${member.xp.toLocaleString()}\n**Progress:** ${progress}% to next level\n**Messages:** ${member.totalMessages.toLocaleString()}\n**Voice Level:** ${member.voiceLevel || 0}\n**Voice XP:** ${(member.voiceXp || 0).toLocaleString()}`
     ).setThumbnail(user.displayAvatarURL({ dynamic: true }));
 
     interaction.reply({ embeds: [embed] });

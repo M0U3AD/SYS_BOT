@@ -2,33 +2,49 @@ const { SlashCommandBuilder } = require('discord.js');
 const { infoEmbed } = require('../../utils/embeds');
 const Member = require('../../database/models/Member');
 
+const medals = ['🥇', '🥈', '🥉'];
+
+async function getLeaderboard(guildId, voice) {
+  const query = voice ? { guildId, voiceXp: { $gt: 0 } } : { guildId };
+  const sort = voice ? { voiceLevel: -1, voiceXp: -1 } : { level: -1, xp: -1 };
+  return Member.find(query).sort(sort).limit(15);
+}
+
+function formatLeaderboard(members, voice) {
+  return members.map((member, index) => {
+    const rank = medals[index] || `**${index + 1}.**`;
+    const level = voice ? member.voiceLevel || 0 : member.level;
+    const xp = voice ? member.voiceXp || 0 : member.xp;
+    return `${rank} <@${member.userId}> — ${voice ? 'Voice level' : 'Level'} **${level}** (${xp.toLocaleString()} XP)`;
+  }).join('\n');
+}
+
 module.exports = {
   name: 'levels',
   description: 'View the server level leaderboard',
-  usage: '!levels',
+  usage: '!levels [voice]',
   slash: new SlashCommandBuilder()
     .setName('levels')
-    .setDescription('View level leaderboard'),
+    .setDescription('View level leaderboard')
+    .addStringOption(opt => opt
+      .setName('type')
+      .setDescription('Choose the leaderboard')
+      .addChoices(
+        { name: 'Overall', value: 'overall' },
+        { name: 'Voice', value: 'voice' }
+      )),
   async execute(message, args) {
-    const top = await Member.find({ guildId: message.guild.id }).sort({ level: -1, xp: -1 }).limit(15);
+    const voice = args[0]?.toLowerCase() === 'voice';
+    const top = await getLeaderboard(message.guild.id, voice);
     if (top.length === 0) return message.reply({ embeds: [infoEmbed('Leaderboard', 'No level data yet.')] });
 
-    const list = top.map((m, i) => {
-      const medals = ['🥇', '🥈', '🥉'];
-      const prefix = medals[i] || `**${i + 1}.**`;
-      return `${prefix} <@${m.userId}> — Level **${m.level}** (${m.xp.toLocaleString()} XP)`;
-    }).join('\n');
-
-    message.reply({ embeds: [infoEmbed('Level Leaderboard', list)] });
+    return message.reply({ embeds: [infoEmbed(voice ? 'Voice Level Leaderboard' : 'Level Leaderboard', formatLeaderboard(top, voice))] });
   },
-  async slashExecute(interaction, client) {
-    const top = await Member.find({ guildId: interaction.guild.id }).sort({ level: -1, xp: -1 }).limit(15);
+  async slashExecute(interaction) {
+    const voice = interaction.options.getString('type') === 'voice';
+    const top = await getLeaderboard(interaction.guild.id, voice);
     if (top.length === 0) return interaction.reply({ embeds: [infoEmbed('Leaderboard', 'No data.')], ephemeral: true });
-    const medals = ['🥇', '🥈', '🥉'];
-    const list = top.map((m, i) => {
-      const prefix = medals[i] || `**${i + 1}.**`;
-      return `${prefix} <@${m.userId}> — Level **${m.level}** (${m.xp.toLocaleString()} XP)`;
-    }).join('\n');
-    interaction.reply({ embeds: [infoEmbed('Level Leaderboard', list)] });
+
+    return interaction.reply({ embeds: [infoEmbed(voice ? 'Voice Level Leaderboard' : 'Level Leaderboard', formatLeaderboard(top, voice))] });
   },
 };
