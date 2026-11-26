@@ -35,5 +35,7 @@ const client = new Client({
   loadEvents(client);
   setupCommandTracking(client);
   createServer(client);
-  client.login(process.env.TOKEN);
+  client.login(process.env.TOKEN).catch((error) => {
+    console.error('Discord login failed:', error);
+  });
 })();

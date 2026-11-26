@@ -94,9 +94,9 @@ class Store {
       commandsToday: this.stats.commandsToday,
       uptime,
       ping: client.ws.ping,
-      botTag: client.user.tag,
-      botId: client.user.id,
-      botAvatar: client.user.displayAvatarURL({ dynamic: true }),
+      botTag: client.user?.tag || 'Offline',
+      botId: client.user?.id || '',
+      botAvatar: client.user?.displayAvatarURL({ dynamic: true }) || null,
     };
   }
 
